@@ -15,7 +15,7 @@ public class SplitScreenApp
     private static double ExtendRatio => AppSettings.Instance.ExtendRatio;
     private static ButtonAction MiddleForwardButtonClickAction => AppSettings.Instance.MiddleForwardButtonClickAction;
     private static ButtonAction MiddleBackButtonClickAction => AppSettings.Instance.MiddleBackButtonClickAction;
-
+  private static List<string> IgnoreWindowTitles => AppSettings.Instance.IgnoreWindowTitles;
     // 透過
     const int GWL_EXSTYLE = -20;
     const int WS_EX_LAYERED = 0x80000;
@@ -39,14 +39,6 @@ public class SplitScreenApp
     const int HWND_TOP = 0;
 
     private const int SNAP_WAIT_TIME = 100;
-
-    // 無視するウィンドウのタイトルの配列
-    static string[] IGNORE_WINDOW_TITLES = new string[]
-    {
-    "Windows 入力エクスペリエンス",
-    "設定",
-    "メール"
-    };
 
 
     // モニターのサイズ
@@ -538,33 +530,17 @@ private ResizingContext context;
 
 
 
-    public async Task<List<WindowItem>> GetAllWindowsOnCurrentDesktopAllAsync(int monitorIndex)
+public async Task<List<WindowItem>> GetAllWindowsOnCurrentDesktopAsync(int monitorIndex)
+{
+    return await Task.Run(() =>
     {
-        return await Task.Run(() =>
+        if (monitorIndex < 0 || monitorIndex >= Screen.AllScreens.Length)
         {
-            if (monitorIndex < 0 || monitorIndex >= Screen.AllScreens.Length)
-            {
-                throw new ArgumentOutOfRangeException(nameof(monitorIndex), "Invalid monitor index.");
-            }
+            throw new ArgumentOutOfRangeException(nameof(monitorIndex), "Invalid monitor index.");
+        }
 
-            Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
-
-
-            List<WindowItem> allWindows = GetAllWindowsOnCurrentVirtualMonitor(monitorIndex);
-
-            return allWindows;
-        });
-    }
-
-
-
-
-
-    public static List<WindowItem> GetAllWindowsOnCurrentVirtualMonitor(int monitorIndex)
-    {
         List<WindowItem> windows = new List<WindowItem>();
         IVirtualDesktopManager virtualDesktopManager = (IVirtualDesktopManager)new VirtualDesktopManager();
-
         Screen targetMonitor = Screen.AllScreens[monitorIndex];
 
         // targetMonitorの仮想デスクトップにあるウィンドウを列挙
@@ -575,41 +551,27 @@ private ResizingContext context;
                 return true; // 現在の仮想デスクトップにないウィンドウは無視
             }
 
-            // ゴミウィンドウを無視
-            // TODO リファクタリング
             if (!IsAltTabWindow(hWnd))
             {
                 return true;
             }
 
-
-            // ウィンドウがターゲットモニター上にあるかどうかを確認
-            RECT rect;
-
-
             StringBuilder title = new StringBuilder(256);
             GetWindowText(hWnd, title, title.Capacity);
-            // titleが空のウィンドウは無視
             if (title.Length == 0)
             {
                 return true;
             }
-
-
-            // ignoreリストにあるウィンドウは無視
-            if (IGNORE_WINDOW_TITLES.Contains(title.ToString()))
+     
+            if (IgnoreWindowTitles.Contains(title.ToString()))
             {
                 return true;
             }
-
-
 
             WINDOWPLACEMENT placement = new WINDOWPLACEMENT();
             placement.length = Marshal.SizeOf(placement);
             GetWindowPlacement(hWnd, ref placement);
             RECT rcNormalPosition = placement.rcNormalPosition;
-
-
 
             int centerX = rcNormalPosition.Left + (rcNormalPosition.Right - rcNormalPosition.Left) / 2;
             int centerY = rcNormalPosition.Top + (rcNormalPosition.Bottom - rcNormalPosition.Top) / 2;
@@ -619,30 +581,24 @@ private ResizingContext context;
                 return true; // ターゲットモニターに中心がないウィンドウは無視
             }
 
-
-
             if (IsSmall(rcNormalPosition.Right - rcNormalPosition.Left, rcNormalPosition.Bottom - rcNormalPosition.Top))
             {
                 return true;
             }
-
-
+            System.Diagnostics.Debug.WriteLine(title.ToString());
 
             windows.Add(new WindowItem
             {
                 Handle = hWnd,
                 Title = title.ToString(),
-
             });
 
             return true;
         }, IntPtr.Zero);
 
         return windows;
-    }
-
-
-
+    });
+}
 
 
 private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int newLeftWindowWidth, int newRightWindowWidth, int monitorIndex)
@@ -824,7 +780,7 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
     {
         if (_windows.Count == 0)
         {
-            _windows = await GetAllWindowsOnCurrentDesktopAllAsync(monitorIndex);
+            _windows = await GetAllWindowsOnCurrentDesktopAsync(monitorIndex);
 
 
 
@@ -1049,7 +1005,11 @@ private void UpdateWindowWidthsAndResize(ExtendedMouseEventArgs e, ResizingConte
     private static bool IsSmall(IntPtr width, IntPtr height)
     {
         // width とheightの積が 10000 以下なら小さいと判定する
-        return width * height <= 1000;
+        // return width * height <= 1000;
+        if(width < 100 || height < 100  ){
+            return true;
+        }
+        return false;
     }
 
     // 終了イベント
