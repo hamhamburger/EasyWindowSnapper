@@ -15,7 +15,7 @@ public class SplitScreenApp
     private static double ExtendRatio => AppSettings.Instance.ExtendRatio;
     private static ButtonAction MiddleForwardButtonClickAction => AppSettings.Instance.MiddleForwardButtonClickAction;
     private static ButtonAction MiddleBackButtonClickAction => AppSettings.Instance.MiddleBackButtonClickAction;
-  private static List<string> IgnoreWindowTitles => AppSettings.Instance.IgnoreWindowTitles;
+    private static List<string> IgnoreWindowTitles => AppSettings.Instance.IgnoreWindowTitles;
     // 透過
     const int GWL_EXSTYLE = -20;
     const int WS_EX_LAYERED = 0x80000;
@@ -54,15 +54,15 @@ public class SplitScreenApp
     int resizingMonitorWidth = 0;
     int resizingExtendPixel = 0;
 
-public class ResizingContext
-{
-    public IntPtr LeftWindow { get; set; }
-    public IntPtr RightWindow { get; set; }
-    public int ExtendPixel { get; set; }
-    public int MonitorWidth { get; set; }
-    public int MonitorIndex { get; set; }
-}
-private ResizingContext context;
+    public class ResizingContext
+    {
+        public IntPtr LeftWindow { get; set; }
+        public IntPtr RightWindow { get; set; }
+        public int ExtendPixel { get; set; }
+        public int MonitorWidth { get; set; }
+        public int MonitorIndex { get; set; }
+    }
+    private ResizingContext context;
 
 
     private void CompleteResize()
@@ -217,7 +217,7 @@ private ResizingContext context;
     public SplitScreenApp()
     {
 
-      
+
         // コンテキストメニューストリップを作成し、"Exit"メニューアイテムで充填
         var contextMenuStrip = new ContextMenuStrip();
 
@@ -330,7 +330,7 @@ private ResizingContext context;
         // MinimizeWindow(hWnd);
         var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
 
-          Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
+        Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
         var monitorWidth = workingArea.Width;
         GetWindowRect(rightWindowRoot, out RECT rightWindowRect);
         GetWindowRect(leftWindowRoot, out RECT leftWindowRect);
@@ -402,7 +402,7 @@ private ResizingContext context;
     }
 
 
-// TODO　パフォーマンス改善
+    // TODO　パフォーマンス改善
     private void MoveWindowByWidth(IntPtr hWnd, int width, bool moveToLeft)
     {
         Rectangle workingArea = Screen.FromHandle(hWnd).WorkingArea;
@@ -468,8 +468,8 @@ private ResizingContext context;
             throw new ArgumentOutOfRangeException(nameof(monitorIndex), "Invalid monitor index.");
         }
 
-       
-         Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
+
+        Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
 
 
         int acceptableWidth = workingArea.Width - MinWindowWidth;
@@ -524,92 +524,96 @@ private ResizingContext context;
             }
         }
 
+        System.Diagnostics.Debug.WriteLine("left");
+        System.Diagnostics.Debug.WriteLine(leftWindowRoot);
+        System.Diagnostics.Debug.WriteLine("right");
+        System.Diagnostics.Debug.WriteLine(rightWindowRoot);
 
         return (leftWindowRoot, rightWindowRoot);
     }
 
 
 
-public async Task<List<WindowItem>> GetAllWindowsOnCurrentDesktopAsync(int monitorIndex)
-{
-    return await Task.Run(() =>
+    public async Task<List<WindowItem>> GetAllWindowsOnCurrentDesktopAsync(int monitorIndex)
     {
-        if (monitorIndex < 0 || monitorIndex >= Screen.AllScreens.Length)
+        return await Task.Run(() =>
         {
-            throw new ArgumentOutOfRangeException(nameof(monitorIndex), "Invalid monitor index.");
-        }
-
-        List<WindowItem> windows = new List<WindowItem>();
-        IVirtualDesktopManager virtualDesktopManager = (IVirtualDesktopManager)new VirtualDesktopManager();
-        Screen targetMonitor = Screen.AllScreens[monitorIndex];
-
-        // targetMonitorの仮想デスクトップにあるウィンドウを列挙
-        EnumWindows(delegate (IntPtr hWnd, IntPtr lParam)
-        {
-            if (!virtualDesktopManager.IsWindowOnCurrentVirtualDesktop(hWnd))
+            if (monitorIndex < 0 || monitorIndex >= Screen.AllScreens.Length)
             {
-                return true; // 現在の仮想デスクトップにないウィンドウは無視
+                throw new ArgumentOutOfRangeException(nameof(monitorIndex), "Invalid monitor index.");
             }
 
-            if (!IsAltTabWindow(hWnd))
+            List<WindowItem> windows = new List<WindowItem>();
+            IVirtualDesktopManager virtualDesktopManager = (IVirtualDesktopManager)new VirtualDesktopManager();
+            Screen targetMonitor = Screen.AllScreens[monitorIndex];
+
+            // targetMonitorの仮想デスクトップにあるウィンドウを列挙
+            EnumWindows(delegate (IntPtr hWnd, IntPtr lParam)
             {
+                if (!virtualDesktopManager.IsWindowOnCurrentVirtualDesktop(hWnd))
+                {
+                    return true; // 現在の仮想デスクトップにないウィンドウは無視
+                }
+
+                if (!IsAltTabWindow(hWnd))
+                {
+                    return true;
+                }
+
+                StringBuilder title = new StringBuilder(256);
+                GetWindowText(hWnd, title, title.Capacity);
+                if (title.Length == 0)
+                {
+                    return true;
+                }
+
+                if (IgnoreWindowTitles.Contains(title.ToString()))
+                {
+                    return true;
+                }
+
+                WINDOWPLACEMENT placement = new WINDOWPLACEMENT();
+                placement.length = Marshal.SizeOf(placement);
+                GetWindowPlacement(hWnd, ref placement);
+                RECT rcNormalPosition = placement.rcNormalPosition;
+
+                int centerX = rcNormalPosition.Left + (rcNormalPosition.Right - rcNormalPosition.Left) / 2;
+                int centerY = rcNormalPosition.Top + (rcNormalPosition.Bottom - rcNormalPosition.Top) / 2;
+
+                if (!targetMonitor.Bounds.Contains(centerX, centerY))
+                {
+                    return true; // ターゲットモニターに中心がないウィンドウは無視
+                }
+
+                if (IsSmall(rcNormalPosition.Right - rcNormalPosition.Left, rcNormalPosition.Bottom - rcNormalPosition.Top))
+                {
+                    return true;
+                }
+                System.Diagnostics.Debug.WriteLine(title.ToString());
+
+                windows.Add(new WindowItem
+                {
+                    Handle = hWnd,
+                    Title = title.ToString(),
+                });
+
                 return true;
-            }
+            }, IntPtr.Zero);
 
-            StringBuilder title = new StringBuilder(256);
-            GetWindowText(hWnd, title, title.Capacity);
-            if (title.Length == 0)
-            {
-                return true;
-            }
-     
-            if (IgnoreWindowTitles.Contains(title.ToString()))
-            {
-                return true;
-            }
-
-            WINDOWPLACEMENT placement = new WINDOWPLACEMENT();
-            placement.length = Marshal.SizeOf(placement);
-            GetWindowPlacement(hWnd, ref placement);
-            RECT rcNormalPosition = placement.rcNormalPosition;
-
-            int centerX = rcNormalPosition.Left + (rcNormalPosition.Right - rcNormalPosition.Left) / 2;
-            int centerY = rcNormalPosition.Top + (rcNormalPosition.Bottom - rcNormalPosition.Top) / 2;
-
-            if (!targetMonitor.Bounds.Contains(centerX, centerY))
-            {
-                return true; // ターゲットモニターに中心がないウィンドウは無視
-            }
-
-            if (IsSmall(rcNormalPosition.Right - rcNormalPosition.Left, rcNormalPosition.Bottom - rcNormalPosition.Top))
-            {
-                return true;
-            }
-            System.Diagnostics.Debug.WriteLine(title.ToString());
-
-            windows.Add(new WindowItem
-            {
-                Handle = hWnd,
-                Title = title.ToString(),
-            });
-
-            return true;
-        }, IntPtr.Zero);
-
-        return windows;
-    });
-}
+            return windows;
+        });
+    }
 
 
-private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int newLeftWindowWidth, int newRightWindowWidth, int monitorIndex)
-{
-    Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
-    newLeftWindowWidth = Math.Min(newLeftWindowWidth, workingArea.Width);
-    newRightWindowWidth = Math.Min(newRightWindowWidth, workingArea.Width);
+    private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int newLeftWindowWidth, int newRightWindowWidth, int monitorIndex)
+    {
+        Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
+        newLeftWindowWidth = Math.Min(newLeftWindowWidth, workingArea.Width);
+        newRightWindowWidth = Math.Min(newRightWindowWidth, workingArea.Width);
 
-    SetWindowPos(leftWindowRoot, (IntPtr)HWND_TOP, workingArea.X, workingArea.Y, newLeftWindowWidth, workingArea.Height, 0x0040);
-    SetWindowPos(rightWindowRoot, (IntPtr)HWND_TOP, workingArea.X + newLeftWindowWidth, workingArea.Y, newRightWindowWidth, workingArea.Height, 0x0040);
-}
+        SetWindowPos(leftWindowRoot, (IntPtr)HWND_TOP, workingArea.X, workingArea.Y, newLeftWindowWidth, workingArea.Height, 0x0040);
+        SetWindowPos(rightWindowRoot, (IntPtr)HWND_TOP, workingArea.X + newLeftWindowWidth, workingArea.Y, newRightWindowWidth, workingArea.Height, 0x0040);
+    }
 
     // マウス操作時のイベント5
     private async Task OnMouseActionAsync(object sender, ExtendedMouseEventArgs e)
@@ -665,21 +669,9 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
         ShowWindow(hWnd, SW_MAXIMIZE);
     }
 
-    private bool CloseWindow(IntPtr hWnd)
+    private void CloseWindow(IntPtr hWnd)
     {
         SendMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
-
-        // ウィンドウが閉じるまで待機
-        System.Threading.Thread.Sleep(90);
-
-        if (IsWindow(hWnd))
-        {
-            return false;
-        }
-        else
-        {
-            return true;
-        }
     }
 
     private Point GetCursorPosition(ExtendedMouseEventArgs e)
@@ -694,14 +686,14 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
     }
 
     private Rectangle GetMonitorWorkingArea(int monitorIndex)
-{
-    if (!monitorWorkingAreas.ContainsKey(monitorIndex))
     {
-        monitorWorkingAreas[monitorIndex] = Screen.AllScreens[monitorIndex].WorkingArea;
-    }
+        if (!monitorWorkingAreas.ContainsKey(monitorIndex))
+        {
+            monitorWorkingAreas[monitorIndex] = Screen.AllScreens[monitorIndex].WorkingArea;
+        }
 
-    return monitorWorkingAreas[monitorIndex];
-}
+        return monitorWorkingAreas[monitorIndex];
+    }
 
     private void HandleBackButtonDown(ExtendedMouseEventArgs e, IntPtr hwnd, int monitorIndex)
     {
@@ -733,14 +725,9 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
                         break;
 
                     case ButtonAction.CLOSE_WINDOW:
-                        if (CloseWindow(hwnd))
-                        {
-                            _windowSelector.deleteWindow(hwnd);
-                        }
-                        else
-                        {
-                            FlashWindow(hwnd);
-                        }
+                        CloseWindow(hwnd);
+
+
                         break;
 
 
@@ -751,29 +738,31 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
         }
 
 
-    if (e.Delta != 0)
-    {
-        if (isBackButtonPressed == false)
+        if (e.Delta != 0)
         {
-            isBackButtonPressed = true;
-            var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
-            // SetForegroundWindow(leftWindowRoot);
-            // SetForegroundWindow(rightWindowRoot);
-            context = new ResizingContext
+            if (isBackButtonPressed == false)
             {
-                LeftWindow = leftWindowRoot,
-                RightWindow = rightWindowRoot,
-                ExtendPixel = GetExtendPixel(monitorIndex),
-                MonitorWidth = GetMonitorWorkingArea(monitorIndex).Width,
-                MonitorIndex = monitorIndex
-            };
-        }
-// TODO
-         SetForegroundWindow(context.LeftWindow);
-         SetForegroundWindow(context.RightWindow);
+                isBackButtonPressed = true;
+                var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
+                SetForegroundWindow(leftWindowRoot);
+                // SetForegroundWindow(rightWindowRoot);
+                context = new ResizingContext
+                {
+                    LeftWindow = leftWindowRoot,
+                    RightWindow = rightWindowRoot,
+                    ExtendPixel = GetExtendPixel(monitorIndex),
+                    MonitorWidth = GetMonitorWorkingArea(monitorIndex).Width,
+                    MonitorIndex = monitorIndex
+                };
+               SetForegroundWindow(rightWindowRoot);
+            }
+            // TODO
+            
+           
+            // SetForegroundWindow(context.RightWindow);
 
-        ResizeWindowBasedOnDelta(e, context);
-    }
+            ResizeWindowBasedOnDelta(e, context);
+        }
     }
 
     private async void HandleForwardButtonDown(ExtendedMouseEventArgs e, IntPtr hWndRoot, int monitorIndex)
@@ -846,13 +835,12 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
                         break;
 
                     case ButtonAction.CLOSE_WINDOW:
-                        if (CloseWindow(hwnd))
+                        CloseWindow(hwnd);
+                        System.Threading.Thread.Sleep(120);
+                        if (!IsWindow(hwnd))
                         {
                             _windowSelector.deleteWindow(hwnd);
-                        }
-                        else
-                        {
-                            FlashWindow(hwnd);
+
                         }
                         break;
 
@@ -902,69 +890,69 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
 
     private Dictionary<int, int> extendPixels = new Dictionary<int, int>();
 
-private int GetExtendPixel(int monitorIndex)
-{
-    if (!extendPixels.ContainsKey(monitorIndex))
+    private int GetExtendPixel(int monitorIndex)
     {
-        var monitorWidth = GetMonitorWorkingArea(monitorIndex).Width;
-        extendPixels[monitorIndex] = (int)(ExtendRatio * monitorWidth);
+        if (!extendPixels.ContainsKey(monitorIndex))
+        {
+            var monitorWidth = GetMonitorWorkingArea(monitorIndex).Width;
+            extendPixels[monitorIndex] = (int)(ExtendRatio * monitorWidth);
+        }
+
+        return extendPixels[monitorIndex];
     }
 
-    return extendPixels[monitorIndex];
-}
-
-private void ResizeWindowBasedOnDelta(ExtendedMouseEventArgs e, ResizingContext context)
-{
-    System.Diagnostics.Debug.WriteLine("delta:" + e.Delta);
-    if (e.Delta > 0)
+    private void ResizeWindowBasedOnDelta(ExtendedMouseEventArgs e, ResizingContext context)
     {
-        // 右のウィンドウを拡大
-        if (context.LeftWindow == IntPtr.Zero)
+        System.Diagnostics.Debug.WriteLine("delta:" + e.Delta);
+        if (e.Delta > 0)
         {
-            System.Diagnostics.Debug.WriteLine("LeftWindowHandle is null");
+            // 右のウィンドウを拡大
+            if (context.LeftWindow == IntPtr.Zero)
+            {
+                System.Diagnostics.Debug.WriteLine("LeftWindowHandle is null");
+                return;
+            }
+            int newRightWindowWidth = GetNewWindowWidth(context.RightWindow, context.ExtendPixel);
+            UpdateWindowWidthsAndResize(e, context, newRightWindowWidth);
+        }
+        else
+        {
+            // 左のウィンドウを拡大
+            if (context.RightWindow == IntPtr.Zero)
+            {
+                return;
+            }
+            int newLeftWindowWidth = GetNewWindowWidth(context.LeftWindow, context.ExtendPixel);
+            UpdateWindowWidthsAndResize(e, context, newLeftWindowWidth);
+        }
+    }
+
+
+    private int GetNewWindowWidth(IntPtr windowHandle, int extendPixel)
+    {
+        GetWindowRect(windowHandle, out RECT windowRect);
+        return (int)(windowRect.Width + extendPixel);
+    }
+
+
+    private void UpdateWindowWidthsAndResize(ExtendedMouseEventArgs e, ResizingContext context, int newWindowWidth)
+    {
+        int newOtherWindowWidth = context.MonitorWidth - newWindowWidth;
+        if (newOtherWindowWidth < MinWindowWidth)
+        {
+            System.Diagnostics.Debug.WriteLine("newOtherWindowWidth is too small");
             return;
         }
-        int newRightWindowWidth = GetNewWindowWidth(context.RightWindow, context.ExtendPixel);
-        UpdateWindowWidthsAndResize(e, context, newRightWindowWidth);
-    }
-    else
-    {
-        // 左のウィンドウを拡大
-        if (context.RightWindow == IntPtr.Zero)
+
+        if (e.Delta > 0)
         {
-            return;
+            ResizeWindows(context.LeftWindow, context.RightWindow, newOtherWindowWidth, newWindowWidth, context.MonitorIndex);
         }
-        int newLeftWindowWidth = GetNewWindowWidth(context.LeftWindow, context.ExtendPixel);
-        UpdateWindowWidthsAndResize(e, context, newLeftWindowWidth);
+        else
+        {
+            ResizeWindows(context.LeftWindow, context.RightWindow, newWindowWidth, newOtherWindowWidth, context.MonitorIndex);
+        }
     }
-}
-
-
-private int GetNewWindowWidth(IntPtr windowHandle, int extendPixel)
-{
-    GetWindowRect(windowHandle, out RECT windowRect);
-    return (int)(windowRect.Width + extendPixel);
-}
-
-
-private void UpdateWindowWidthsAndResize(ExtendedMouseEventArgs e, ResizingContext context, int newWindowWidth)
-{
-    int newOtherWindowWidth = context.MonitorWidth - newWindowWidth;
-    if (newOtherWindowWidth < MinWindowWidth)
-    {
-        System.Diagnostics.Debug.WriteLine("newOtherWindowWidth is too small");
-        return;
-    }
-
-    if (e.Delta > 0)
-    {
-         ResizeWindows(context.LeftWindow, context.RightWindow, newOtherWindowWidth, newWindowWidth, context.MonitorIndex);
-    }
-    else
-    {
-        ResizeWindows(context.LeftWindow, context.RightWindow, newWindowWidth, newOtherWindowWidth, context.MonitorIndex);
-    }
-}
 
 
 
@@ -1006,7 +994,8 @@ private void UpdateWindowWidthsAndResize(ExtendedMouseEventArgs e, ResizingConte
     {
         // width とheightの積が 10000 以下なら小さいと判定する
         // return width * height <= 1000;
-        if(width < 100 || height < 100  ){
+        if (width < 100 || height < 100)
+        {
             return true;
         }
         return false;

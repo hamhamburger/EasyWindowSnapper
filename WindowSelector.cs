@@ -129,10 +129,6 @@ public partial class WindowSelector : Form
         this.Enabled = false; // Disable mouse and keyboard interactions
         this.StartPosition = FormStartPosition.CenterScreen;
         this.ShowInTaskbar = false;
-        
-
-
-
         dgvWindows = new DataGridView
         {
             Size = new Size(800, 800),
@@ -142,7 +138,8 @@ public partial class WindowSelector : Form
             RowHeadersVisible = false,
             Dock = DockStyle.Fill,
             AllowUserToAddRows = false,
-             Font = new Font("Microsoft Sans Serif", 18.0f, FontStyle.Regular, GraphicsUnit.Pixel)
+            Font = new Font("Microsoft Sans Serif", 18.0f, FontStyle.Regular, GraphicsUnit.Pixel),
+
         };
         dgvWindows.ColumnHeadersVisible = false;
         dgvWindows.Rows.Clear();

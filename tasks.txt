@@ -24,10 +24,16 @@ AltTabTerminatorのようなプレビュー機能
 
 
 バグ
+
+syuuei
 一覧表示画面でウィンドウを閉じても表示が残るウィンドウがある
 
 メール
 
+
+
+VSCodeしかクリックできなくなる
+→Window: Title Bar Styleをnativeにすることで改善?
 
  
 
