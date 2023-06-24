@@ -38,6 +38,12 @@ public class SplitScreenApp
     const uint GA_ROOT = 2;
     const int HWND_TOP = 0;
 
+    const int HWND_TOPMOST = -1;
+    const int HWND_NOTOPMOST = -2;
+
+    const uint SWP_NOMOVE = 0x0002;
+    const uint SWP_NOSIZE = 0x0001;
+
     private const int SNAP_WAIT_TIME = 100;
 
 
@@ -286,7 +292,7 @@ public class SplitScreenApp
         }
 
         SetWindowPos(hWnd, (IntPtr)HWND_TOP, x, y, width, height, SWP_SHOWWINDOW);
-        SetForegroundWindow(hWnd);
+        MoveForeGroundWindow(hWnd);
     }
 
     private void SnapWindow(IntPtr hwnd, int monitorIndex, bool moveToLeft)
@@ -303,7 +309,7 @@ public class SplitScreenApp
             if (rightWindowRoot != IntPtr.Zero)
             {
                 MoveWindow(rightWindowRoot, monitorIndex, false);
-                SetForegroundWindow(rightWindowRoot);
+                MoveForeGroundWindow(rightWindowRoot);
 
 
             }
@@ -315,11 +321,23 @@ public class SplitScreenApp
             if (leftWindowRoot != IntPtr.Zero)
             {
                 MoveWindow(leftWindowRoot, monitorIndex, true);
-                SetForegroundWindow(leftWindowRoot);
+                MoveForeGroundWindow(leftWindowRoot);
 
             }
         }
-        SetForegroundWindow(hwnd);
+        MoveForeGroundWindow(hwnd);
+    }
+
+    private void MoveForeGroundWindow(IntPtr hwnd){
+        if(false){
+            SetForegroundWindow(hwnd);
+        }
+        else{
+             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+               SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+    
+        }
+
     }
 
 
@@ -429,7 +447,7 @@ public class SplitScreenApp
         }
 
         SetWindowPos(hWnd, (IntPtr)HWND_TOP, x, y, width, height, 0x0040);
-        SetForegroundWindow(hWnd);
+        MoveForeGroundWindow(hWnd);
     }
 
     // ウィンドウを交換する関数
@@ -744,8 +762,8 @@ public class SplitScreenApp
             {
                 isBackButtonPressed = true;
                 var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
-                SetForegroundWindow(leftWindowRoot);
-                // SetForegroundWindow(rightWindowRoot);
+                MoveForeGroundWindow(leftWindowRoot);
+                // MoveForeGroundWindow(rightWindowRoot);
                 context = new ResizingContext
                 {
                     LeftWindow = leftWindowRoot,
@@ -754,12 +772,12 @@ public class SplitScreenApp
                     MonitorWidth = GetMonitorWorkingArea(monitorIndex).Width,
                     MonitorIndex = monitorIndex
                 };
-               SetForegroundWindow(rightWindowRoot);
+               MoveForeGroundWindow(rightWindowRoot);
             }
             // TODO
             
            
-            // SetForegroundWindow(context.RightWindow);
+            // MoveForeGroundWindow(context.RightWindow);
 
             ResizeWindowBasedOnDelta(e, context);
         }
