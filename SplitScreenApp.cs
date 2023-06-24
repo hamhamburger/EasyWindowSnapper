@@ -769,13 +769,11 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
 
                     case ButtonAction.MINIMIZE_WINDOW:
                         MinimizeWindow(hwnd);
-                        // 左のウィンドウをスナップ
-                        // SnapWindow(hwnd, monitorIndex, true);
+
                         break;
 
                     case ButtonAction.MAXIMIZE_WINDOW:
                         MaximizeWindow(hwnd);
-                        // SetWindowTransparency(hwnd, 100);
                         break;
 
                     case ButtonAction.CLOSE_WINDOW:
@@ -803,6 +801,8 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
         {
             isBackButtonPressed = true;
             var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
+            // SetForegroundWindow(leftWindowRoot);
+            // SetForegroundWindow(rightWindowRoot);
             context = new ResizingContext
             {
                 LeftWindow = leftWindowRoot,
@@ -812,6 +812,9 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
                 MonitorIndex = monitorIndex
             };
         }
+// TODO
+         SetForegroundWindow(context.LeftWindow);
+         SetForegroundWindow(context.RightWindow);
 
         ResizeWindowBasedOnDelta(e, context);
     }
@@ -844,9 +847,6 @@ private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int ne
             _windowSelector.Show();
             _windowSelector.UpdateWindows(_windows);
 
-            // 左右のウィンドウを取得し透過
-            transparentedWindows.Add(leftWindowRoot);
-            transparentedWindows.Add(rightWindowRoot);
             // SetWindowTransparency(leftWindowRoot, 200);
             // SetWindowTransparency(rightWindowRoot, 200);
 

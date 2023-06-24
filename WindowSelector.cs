@@ -33,8 +33,9 @@ public partial class WindowSelector : Form
     [DllImport("user32.dll")]
     static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
-
-
+  private DataGridView dgvWindows;
+    private Image splitLeftIcon;
+    private Image splitRightIcon;
     private Dictionary<IntPtr, IntPtr> iconCache = new Dictionary<IntPtr, IntPtr>();
 
     public const int WM_GETICON = 0x007f;
@@ -105,52 +106,72 @@ public partial class WindowSelector : Form
     private int _targetIndex;
     private ListView listView;
     // private PictureBox previewBox;
+public WindowSelector(List<WindowItem>? windows)
+{
+    _windows = windows ?? new List<WindowItem>();
+    System.Diagnostics.Debug.WriteLine($"Number of windows: {_windows.Count}");
+ 
+    _targetIndex = 0;
+    this.Size = new Size(800, 800); // Adjust as needed
+    this.StartPosition = FormStartPosition.CenterScreen;
 
-    public WindowSelector(List<WindowItem>? windows)
+    dgvWindows = new DataGridView
     {
-        _windows = windows ?? new List<WindowItem>();
-        _targetIndex = 0;
+        Size = new Size(800, 800),
+        AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
+        ReadOnly = true,
+        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
+        RowHeadersVisible = false,
+        Dock = DockStyle.Fill,
+         AllowUserToAddRows = false
+    };
+    dgvWindows.Rows.Clear();
 
-        listView = new ListView
-        {
-            View = View.Details,
-            FullRowSelect = true,
-            HideSelection = true,
-            SmallImageList = new ImageList() { ImageSize = new Size((int)(32 * 1.5), (int)(32 * 1.5)) }
-        };
-        listView.Columns.Add("Icon", (int)(100 * 1.5), HorizontalAlignment.Left);
-        listView.Columns.Add("Title", (int)(300 * 1.5), HorizontalAlignment.Left);
+    // Create and add icon column
+    DataGridViewImageColumn iconColumn = new DataGridViewImageColumn
+    {
+        Name = "icon",
+        HeaderText = "Icon",
+        ImageLayout = DataGridViewImageCellLayout.Normal, // Keep the icon as it is
+        Width = 50  // Set a fixed width for the icon column
+    };
+    dgvWindows.Columns.Add(iconColumn);
 
-        int itemHeight = (int)(17 * 3);
-        int headerHeight = (int)(20 * 3);
-        listView.Height = MaxDisplayItems * itemHeight + headerHeight;
+    // Create and add type column
+    DataGridViewImageColumn typeColumn = new DataGridViewImageColumn
+    {
+        Name = "type",
+        HeaderText = "Type",
+        ImageLayout = DataGridViewImageCellLayout.Normal, // Keep the icon as it is
+        Width = 50  // Set a fixed width for the type column
+    };
+    dgvWindows.Columns.Add(typeColumn);
 
-        int totalColumnWidth = 0;
-        foreach (ColumnHeader column in listView.Columns)
-        {
-            totalColumnWidth += column.Width;
-        }
-        listView.Width = totalColumnWidth;
+    // Create and add title column
+    DataGridViewTextBoxColumn titleColumn = new DataGridViewTextBoxColumn
+    {
+        Name = "title",
+        HeaderText = "Title",
+        AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill // Set the title column to fill the remaining space
+    };
+    dgvWindows.Columns.Add(titleColumn);
 
-        UpdateListView();
+    string leftIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_left.ico");
+    string rightIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_right.ico");
+    splitLeftIcon = Image.FromFile(leftIconPath);
+    splitRightIcon = Image.FromFile(rightIconPath);
 
-        this.ClientSize = listView.Size;
-        this.FormBorderStyle = FormBorderStyle.None;
-        this.ShowInTaskbar = false;
-        this.TopMost = true;
-        this.StartPosition = FormStartPosition.CenterScreen;
+    this.Controls.Add(dgvWindows);
 
-        this.Controls.Add(listView);
-
-
-        this.ClientSize = new Size(listView.Width, listView.Height);
-
-    }
+    this.TopMost = true;
+}
 
     public void UpdateWindows(List<WindowItem>? windows)
     {
         _windows = windows ?? new List<WindowItem>();
-        UpdateListView();
+            System.Diagnostics.Debug.WriteLine($"Number of windows: {_windows.Count}");
+
+        UpdateDataGridView();
     }
     public void deleteWindow(IntPtr handle)
     {
@@ -162,93 +183,75 @@ public partial class WindowSelector : Form
                 break;
             }
         }
-        UpdateListView();
+        UpdateDataGridView();
     }
 
+public void UpdateDataGridView()
+{
+    Size standardIconSize = new Size(32, 32);
 
-    private void UpdateListView()
+    dgvWindows.Rows.Clear();
+    foreach (var window in _windows)
     {
-        listView.Items.Clear();
-        listView.SmallImageList.Images.Clear();
+        // Get the app icon
+        System.Diagnostics.Debug.WriteLine("window");
+        IntPtr hIcon = GetWindowIconCached(window.Handle);
+        Icon appIcon = Icon.FromHandle(hIcon);
+        Bitmap bitmap = appIcon.ToBitmap();
 
-        for (int i = 0; i < _windows.Count; i++)
-        {
-            var window = _windows[i];
-            IntPtr hIcon = GetWindowIcon(window.Handle);
-            if (hIcon == IntPtr.Zero)
-            {
-                hIcon = GetClassLongPtr(window.Handle, GCL_HICON);
-            }
-            if (hIcon == IntPtr.Zero)
-            {
-                hIcon = LoadIcon(IntPtr.Zero, IDI_APPLICATION);
-            }
-            listView.SmallImageList.Images.Add(Icon.FromHandle(hIcon));
+        // Resize the icon to the standard icon size
+        Bitmap resizedIcon = new Bitmap(bitmap, standardIconSize);
 
-            var lvi = new ListViewItem(new[] { "", window.Title })
-            {
-                ImageIndex = i
-            };
-            listView.Items.Add(lvi);
-        }
+        // Create cells
+        var imageCell = new DataGridViewImageCell() { Value = resizedIcon };
+        var textCell = new DataGridViewTextBoxCell() { Value = window.Title };
 
-        listView.SmallImageList.ColorDepth = ColorDepth.Depth32Bit;
+        // Add type icon to the row
+        Bitmap typeIcon; // Set your type icon here. For instance, I am using the resizedIcon as a placeholder.
+        typeIcon = resizedIcon;
+        var typeImageCell = new DataGridViewImageCell() { Value = typeIcon };
 
-        UpdateHighlight();
+        // Add the row to dgvWindows directly
+        dgvWindows.Rows.Add(new object[] { imageCell.Value, typeImageCell.Value, textCell.Value });
+    }
+}
+private void UpdateHighlight()
+{
+    // Ensure that there are windows to select from
+    if (_windows == null || _windows.Count == 0)
+    {
+        return;
     }
 
+    // Clear the current selection in the DataGridView
+    dgvWindows.ClearSelection();
 
-
-    // パフォーマンス重視版
-    // private void UpdateListView()
-    // {
-    //     for (int i = 0; i < _windows.Count; i++)
-    //     {
-    //         var window = _windows[i];
-    //         if (i >= listView.Items.Count)
-    //         {
-    //             var lvi = new ListViewItem(new[] { "", window.Title })
-    //             {
-    //                 ImageIndex = i
-    //             };
-    //             listView.Items.Add(lvi);
-    //         }
-    //         IntPtr hIcon = GetWindowIconCached(window.Handle);
-    //         listView.SmallImageList.Images.Add(Icon.FromHandle(hIcon));
-    //     }
-    //     listView.SmallImageList.ColorDepth = ColorDepth.Depth32Bit;
-    //     UpdateHighlight();
-    // }
-
-    private void UpdateHighlight()
+    // Ensure _targetIndex is within the valid range
+    if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
     {
-        listView.SelectedItems.Clear();
-        for (int i = 0; i < listView.Items.Count; i++)
+        // Highlight the new row
+        dgvWindows.Rows[_targetIndex].Selected = true;
+        dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[1]; // 1はタイトル列を指す
+    }
+    else
+    {
+        // Reset _targetIndex to 0 if it's out of range
+        _targetIndex = 0;
+
+        // Highlight the first row
+        if(dgvWindows.Rows.Count > 0)
         {
-            ListViewItem item = listView.Items[i];
-            if (i == _targetIndex)
-            {
-                item.BackColor = Color.LightBlue;
-
-                // Get the rectangle of the listView item
-                var itemRect = listView.Items[i].Bounds;
-
-                // Calculate the new location and size for the preview
-                // var previewLocation = new Point(itemRect.Right + 5, itemRect.Top);
-                // var previewSize = new Size(itemRect.Width, itemRect.Height);
-
-                // Show the window preview with the new location and size
-                // this.previewForm.ShowWindowPreview(_windows[i].Handle, previewLocation, previewSize);
-
-                item.EnsureVisible();
-            }
-            else
-            {
-                item.BackColor = listView.BackColor;
-            }
+            dgvWindows.Rows[_targetIndex].Selected = true;
+            dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[1]; // 1はタイトル列を指す
         }
     }
 
+    // Ensure the selected row is visible
+    if(_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
+    {
+        dgvWindows.FirstDisplayedScrollingRowIndex = _targetIndex;
+    }
+}
     public void SetFormToMonitor(int monitorIndex)
     {
         if (monitorIndex >= 0 && monitorIndex < Screen.AllScreens.Length)
