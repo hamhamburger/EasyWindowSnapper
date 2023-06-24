@@ -1,0 +1,5 @@
+dotnet publish -c Release -r win-x64 --self-contained false
+
+ウィンドウ管理機能
+左右にウィンドウが設置されていない場合に拡大縮小をブロック
+進むボタンでバグるのを修正

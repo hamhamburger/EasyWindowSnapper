@@ -1,0 +1,22 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net7.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- <RuntimeIdentifier>win-x64</RuntimeIdentifier> -->
+  </PropertyGroup>
+  
+  <ItemGroup>
+    <Resource Include="icon.ico" />
+    <Reference Include="System.Windows.Forms" />
+    <FolderToCopy Include="icons\**" />
+  </ItemGroup>
+  
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Copy SourceFiles="@(FolderToCopy)" DestinationFolder="$(OutDir)icons" />
+  </Target>
+  
+</Project>
