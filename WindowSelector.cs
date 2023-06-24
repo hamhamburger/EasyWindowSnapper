@@ -5,7 +5,6 @@ using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using WinSplit;
 
-
 public partial class WindowSelector : Form
 {
     [DllImport("user32.dll")]
@@ -34,8 +33,13 @@ public partial class WindowSelector : Form
     static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
     private DataGridView dgvWindows;
-    private Image splitLeftIcon;
-    private Image splitRightIcon;
+    // private Icon splitLeftIcon;
+    // private Icon splitRightIcon;
+
+
+    private Bitmap splitLeftIconBitmap;
+    private Bitmap splitRightIconBitmap;
+    private Bitmap transparentIconBitmap;
     private Dictionary<IntPtr, IntPtr> iconCache = new Dictionary<IntPtr, IntPtr>();
 
     public const int WM_GETICON = 0x007f;
@@ -46,6 +50,14 @@ public partial class WindowSelector : Form
     public static string IDI_APPLICATION = "#32512";
     public const int GCL_HICONSM = -34;
     public const int GCL_HICON = -14;
+
+    private Bitmap ResizeIconBitmap(Icon icon, int width, int height)
+    {
+        Bitmap originalBitmap = icon.ToBitmap();
+        Bitmap resizedBitmap = new Bitmap(originalBitmap, new Size(width, height));
+        return resizedBitmap;
+    }
+
 
 
     public IntPtr GetWindowIcon(IntPtr hWnd)
@@ -116,7 +128,8 @@ public partial class WindowSelector : Form
         this.FormBorderStyle = FormBorderStyle.None; // Hide title bar
         this.Enabled = false; // Disable mouse and keyboard interactions
         this.StartPosition = FormStartPosition.CenterScreen;
-          this.ShowInTaskbar = false;
+        this.ShowInTaskbar = false;
+        
 
 
 
@@ -128,8 +141,10 @@ public partial class WindowSelector : Form
             SelectionMode = DataGridViewSelectionMode.CellSelect,
             RowHeadersVisible = false,
             Dock = DockStyle.Fill,
-            AllowUserToAddRows = false
+            AllowUserToAddRows = false,
+             Font = new Font("Microsoft Sans Serif", 18.0f, FontStyle.Regular, GraphicsUnit.Pixel)
         };
+        dgvWindows.ColumnHeadersVisible = false;
         dgvWindows.Rows.Clear();
 
         // Create and add icon column
@@ -138,7 +153,7 @@ public partial class WindowSelector : Form
             Name = "icon",
             HeaderText = "Icon",
             ImageLayout = DataGridViewImageCellLayout.Normal, // Keep the icon as it is
-            Width = 50  // Set a fixed width for the icon column
+            Width = 60  // Set a fixed width for the icon column
         };
         dgvWindows.Columns.Add(iconColumn);
 
@@ -148,7 +163,7 @@ public partial class WindowSelector : Form
             Name = "type",
             HeaderText = "Type",
             ImageLayout = DataGridViewImageCellLayout.Normal, // Keep the icon as it is
-            Width = 50  // Set a fixed width for the type column
+            Width = 60  // Set a fixed width for the type column
         };
         dgvWindows.Columns.Add(typeColumn);
 
@@ -163,8 +178,18 @@ public partial class WindowSelector : Form
 
         string leftIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_left.ico");
         string rightIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_right.ico");
-        splitLeftIcon = Image.FromFile(leftIconPath);
-        splitRightIcon = Image.FromFile(rightIconPath);
+
+        Icon splitLeftIcon = new Icon(leftIconPath);
+        Icon splitRightIcon = new Icon(rightIconPath);
+
+        // splitLeftIconBitmap = splitLeftIcon.ToBitmap();
+        // splitRightIconBitmap = splitRightIcon.ToBitmap();
+        splitLeftIconBitmap = ResizeIconBitmap(splitLeftIcon, 60, 60);
+        splitRightIconBitmap = ResizeIconBitmap(splitRightIcon, 60, 60);
+
+        transparentIconBitmap = new Bitmap(1, 1);
+        transparentIconBitmap.MakeTransparent();
+
 
         this.Controls.Add(dgvWindows);
 
@@ -198,8 +223,7 @@ public partial class WindowSelector : Form
         dgvWindows.Rows.Clear();
         foreach (var window in _windows)
         {
-            // Get the app icon
-            System.Diagnostics.Debug.WriteLine("window");
+            // TODO パフォーマンス向上
             IntPtr hIcon = GetWindowIconCached(window.Handle);
             Icon appIcon = Icon.FromHandle(hIcon);
             Bitmap bitmap = appIcon.ToBitmap();
@@ -208,20 +232,28 @@ public partial class WindowSelector : Form
             Bitmap resizedIcon = new Bitmap(bitmap, standardIconSize);
 
             // Create cells
-            var imageCell = new DataGridViewImageCell() { Value = resizedIcon };
+            var appImage = new DataGridViewImageCell() { Value = resizedIcon };
             var textCell = new DataGridViewTextBoxCell() { Value = window.Title };
 
-            // Add type icon to the row
-            Bitmap typeIcon; // Set your type icon here. For instance, I am using the resizedIcon as a placeholder.
-            typeIcon = resizedIcon;
+            Bitmap typeIcon = transparentIconBitmap;
+
+            if (window.type == WindowItemType.LEFT)
+            {
+                typeIcon = splitLeftIconBitmap;
+            }
+            else if (window.type == WindowItemType.RIGHT)
+            {
+                typeIcon = splitRightIconBitmap;
+            }
+
             var typeImageCell = new DataGridViewImageCell() { Value = typeIcon };
 
-            // Add the row to dgvWindows directly
-            dgvWindows.Rows.Add(new object[] { imageCell.Value, typeImageCell.Value, textCell.Value });
+            dgvWindows.Rows.Add(new object[] { appImage.Value, typeImageCell.Value, textCell.Value });
         }
         dgvWindows.ClearSelection();
         UpdateHighlight();
     }
+
     private void UpdateHighlight()
     {
         // Ensure that there are windows to select from
