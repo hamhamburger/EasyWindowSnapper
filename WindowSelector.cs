@@ -33,7 +33,7 @@ public partial class WindowSelector : Form
     [DllImport("user32.dll")]
     static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
-  private DataGridView dgvWindows;
+    private DataGridView dgvWindows;
     private Image splitLeftIcon;
     private Image splitRightIcon;
     private Dictionary<IntPtr, IntPtr> iconCache = new Dictionary<IntPtr, IntPtr>();
@@ -106,70 +106,75 @@ public partial class WindowSelector : Form
     private int _targetIndex;
     private ListView listView;
     // private PictureBox previewBox;
-public WindowSelector(List<WindowItem>? windows)
-{
-    _windows = windows ?? new List<WindowItem>();
-    System.Diagnostics.Debug.WriteLine($"Number of windows: {_windows.Count}");
- 
-    _targetIndex = 0;
-    this.Size = new Size(800, 800); // Adjust as needed
-    this.StartPosition = FormStartPosition.CenterScreen;
-
-    dgvWindows = new DataGridView
+    public WindowSelector(List<WindowItem>? windows)
     {
-        Size = new Size(800, 800),
-        AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
-        ReadOnly = true,
-        SelectionMode = DataGridViewSelectionMode.FullRowSelect,
-        RowHeadersVisible = false,
-        Dock = DockStyle.Fill,
-         AllowUserToAddRows = false
-    };
-    dgvWindows.Rows.Clear();
+        _windows = windows ?? new List<WindowItem>();
+        System.Diagnostics.Debug.WriteLine($"Number of windows: {_windows.Count}");
 
-    // Create and add icon column
-    DataGridViewImageColumn iconColumn = new DataGridViewImageColumn
-    {
-        Name = "icon",
-        HeaderText = "Icon",
-        ImageLayout = DataGridViewImageCellLayout.Normal, // Keep the icon as it is
-        Width = 50  // Set a fixed width for the icon column
-    };
-    dgvWindows.Columns.Add(iconColumn);
+        _targetIndex = 0;
+        this.Size = new Size(800, 800); // Adjust as needed
+        this.FormBorderStyle = FormBorderStyle.None; // Hide title bar
+        this.Enabled = false; // Disable mouse and keyboard interactions
+        this.StartPosition = FormStartPosition.CenterScreen;
+          this.ShowInTaskbar = false;
 
-    // Create and add type column
-    DataGridViewImageColumn typeColumn = new DataGridViewImageColumn
-    {
-        Name = "type",
-        HeaderText = "Type",
-        ImageLayout = DataGridViewImageCellLayout.Normal, // Keep the icon as it is
-        Width = 50  // Set a fixed width for the type column
-    };
-    dgvWindows.Columns.Add(typeColumn);
 
-    // Create and add title column
-    DataGridViewTextBoxColumn titleColumn = new DataGridViewTextBoxColumn
-    {
-        Name = "title",
-        HeaderText = "Title",
-        AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill // Set the title column to fill the remaining space
-    };
-    dgvWindows.Columns.Add(titleColumn);
 
-    string leftIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_left.ico");
-    string rightIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_right.ico");
-    splitLeftIcon = Image.FromFile(leftIconPath);
-    splitRightIcon = Image.FromFile(rightIconPath);
+        dgvWindows = new DataGridView
+        {
+            Size = new Size(800, 800),
+            AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
+            ReadOnly = true,
+            SelectionMode = DataGridViewSelectionMode.CellSelect,
+            RowHeadersVisible = false,
+            Dock = DockStyle.Fill,
+            AllowUserToAddRows = false
+        };
+        dgvWindows.Rows.Clear();
 
-    this.Controls.Add(dgvWindows);
+        // Create and add icon column
+        DataGridViewImageColumn iconColumn = new DataGridViewImageColumn
+        {
+            Name = "icon",
+            HeaderText = "Icon",
+            ImageLayout = DataGridViewImageCellLayout.Normal, // Keep the icon as it is
+            Width = 50  // Set a fixed width for the icon column
+        };
+        dgvWindows.Columns.Add(iconColumn);
 
-    this.TopMost = true;
-}
+        // Create and add type column
+        DataGridViewImageColumn typeColumn = new DataGridViewImageColumn
+        {
+            Name = "type",
+            HeaderText = "Type",
+            ImageLayout = DataGridViewImageCellLayout.Normal, // Keep the icon as it is
+            Width = 50  // Set a fixed width for the type column
+        };
+        dgvWindows.Columns.Add(typeColumn);
+
+        // Create and add title column
+        DataGridViewTextBoxColumn titleColumn = new DataGridViewTextBoxColumn
+        {
+            Name = "title",
+            HeaderText = "Title",
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill // Set the title column to fill the remaining space
+        };
+        dgvWindows.Columns.Add(titleColumn);
+
+        string leftIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_left.ico");
+        string rightIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_right.ico");
+        splitLeftIcon = Image.FromFile(leftIconPath);
+        splitRightIcon = Image.FromFile(rightIconPath);
+
+        this.Controls.Add(dgvWindows);
+
+        this.TopMost = true;
+    }
 
     public void UpdateWindows(List<WindowItem>? windows)
     {
         _windows = windows ?? new List<WindowItem>();
-            System.Diagnostics.Debug.WriteLine($"Number of windows: {_windows.Count}");
+        System.Diagnostics.Debug.WriteLine($"Number of windows: {_windows.Count}");
 
         UpdateDataGridView();
     }
@@ -186,72 +191,72 @@ public WindowSelector(List<WindowItem>? windows)
         UpdateDataGridView();
     }
 
-public void UpdateDataGridView()
-{
-    Size standardIconSize = new Size(32, 32);
-
-    dgvWindows.Rows.Clear();
-    foreach (var window in _windows)
+    public void UpdateDataGridView()
     {
-        // Get the app icon
-        System.Diagnostics.Debug.WriteLine("window");
-        IntPtr hIcon = GetWindowIconCached(window.Handle);
-        Icon appIcon = Icon.FromHandle(hIcon);
-        Bitmap bitmap = appIcon.ToBitmap();
+        Size standardIconSize = new Size(48, 48);
 
-        // Resize the icon to the standard icon size
-        Bitmap resizedIcon = new Bitmap(bitmap, standardIconSize);
-
-        // Create cells
-        var imageCell = new DataGridViewImageCell() { Value = resizedIcon };
-        var textCell = new DataGridViewTextBoxCell() { Value = window.Title };
-
-        // Add type icon to the row
-        Bitmap typeIcon; // Set your type icon here. For instance, I am using the resizedIcon as a placeholder.
-        typeIcon = resizedIcon;
-        var typeImageCell = new DataGridViewImageCell() { Value = typeIcon };
-
-        // Add the row to dgvWindows directly
-        dgvWindows.Rows.Add(new object[] { imageCell.Value, typeImageCell.Value, textCell.Value });
-    }
-}
-private void UpdateHighlight()
-{
-    // Ensure that there are windows to select from
-    if (_windows == null || _windows.Count == 0)
-    {
-        return;
-    }
-
-    // Clear the current selection in the DataGridView
-    dgvWindows.ClearSelection();
-
-    // Ensure _targetIndex is within the valid range
-    if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
-    {
-        // Highlight the new row
-        dgvWindows.Rows[_targetIndex].Selected = true;
-        dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[1]; // 1はタイトル列を指す
-    }
-    else
-    {
-        // Reset _targetIndex to 0 if it's out of range
-        _targetIndex = 0;
-
-        // Highlight the first row
-        if(dgvWindows.Rows.Count > 0)
+        dgvWindows.Rows.Clear();
+        foreach (var window in _windows)
         {
-            dgvWindows.Rows[_targetIndex].Selected = true;
-            dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[1]; // 1はタイトル列を指す
+            // Get the app icon
+            System.Diagnostics.Debug.WriteLine("window");
+            IntPtr hIcon = GetWindowIconCached(window.Handle);
+            Icon appIcon = Icon.FromHandle(hIcon);
+            Bitmap bitmap = appIcon.ToBitmap();
+
+            // Resize the icon to the standard icon size
+            Bitmap resizedIcon = new Bitmap(bitmap, standardIconSize);
+
+            // Create cells
+            var imageCell = new DataGridViewImageCell() { Value = resizedIcon };
+            var textCell = new DataGridViewTextBoxCell() { Value = window.Title };
+
+            // Add type icon to the row
+            Bitmap typeIcon; // Set your type icon here. For instance, I am using the resizedIcon as a placeholder.
+            typeIcon = resizedIcon;
+            var typeImageCell = new DataGridViewImageCell() { Value = typeIcon };
+
+            // Add the row to dgvWindows directly
+            dgvWindows.Rows.Add(new object[] { imageCell.Value, typeImageCell.Value, textCell.Value });
+        }
+        dgvWindows.ClearSelection();
+        UpdateHighlight();
+    }
+    private void UpdateHighlight()
+    {
+        // Ensure that there are windows to select from
+        if (_windows == null || _windows.Count == 0)
+        {
+            return;
+        }
+
+        // Clear the current selection in the DataGridView
+        dgvWindows.ClearSelection();
+
+        // Ensure _targetIndex is within the valid range
+        if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
+        {
+            // Highlight the new cell
+            dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[2]; // 2 is the title column
+        }
+        else
+        {
+            // Reset _targetIndex to 0 if it's out of range
+            _targetIndex = 0;
+
+            // Highlight the first cell
+            if (dgvWindows.Rows.Count > 0)
+            {
+                dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[2]; // 2 is the title column
+            }
+        }
+
+        // Ensure the selected row is visible
+        if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
+        {
+            dgvWindows.FirstDisplayedScrollingRowIndex = _targetIndex;
         }
     }
-
-    // Ensure the selected row is visible
-    if(_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
-    {
-        dgvWindows.FirstDisplayedScrollingRowIndex = _targetIndex;
-    }
-}
     public void SetFormToMonitor(int monitorIndex)
     {
         if (monitorIndex >= 0 && monitorIndex < Screen.AllScreens.Length)
@@ -270,6 +275,7 @@ private void UpdateHighlight()
                 targetScreen.WorkingArea.Top + targetScreen.WorkingArea.Height / 2 - this.Height / 2
             );
         }
+
     }
 
     public WindowItem SelectNextWindow()
