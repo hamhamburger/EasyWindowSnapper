@@ -20,6 +20,11 @@ public class AppSettings
     private const double DefaultLeftScreenRatio = 0.6;
     private const int DefaultMinWindowWidth = 661;
 
+    private const int MaxDisplayRows = 10;
+
+    private const int RowHeight = 60;
+
+
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ButtonAction MiddleForwardButtonClickAction { get; set; } = ButtonAction.CLOSE_WINDOW;
 
