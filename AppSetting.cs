@@ -16,13 +16,14 @@ public class AppSettings
         SWAP_WINDOWS
     }
 
-    private const double DefaultZoomRatio = 0.015;
-    private const double DefaultLeftScreenRatio = 0.6;
-    private const int DefaultMinWindowWidth = 661;
+    public const double DefaultZoomRatio = 0.015;
+    public const double DefaultLeftScreenRatio = 0.6;
+    public const int DefaultMinWindowWidth = 661;
+    public List<string> DefaultIgnoreWindowTitles = new List<string> { "Windows 入力エクスペリエンス", "設定", "メール", "Spotify Widget", "タスク マネージャー" };
 
-    private const int MaxDisplayRows = 10;
+    public const int DefaultMaxDisplayRows = 10;
 
-    private const int RowHeight = 60;
+    public const int DefaultRowHeight = 60;
 
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -35,6 +36,10 @@ public class AppSettings
     public double LeftScreenRatio { get; set; } = DefaultLeftScreenRatio;
     public int MinWindowWidth { get; set; } = DefaultMinWindowWidth;
     public List<string> IgnoreWindowTitles { get; set; } = new List<string> { "Windows 入力エクスペリエンス", "設定", "メール" };
+
+    public int MaxDisplayRows { get; set; } = DefaultMaxDisplayRows;
+
+    public int RowHeight { get; set; } = DefaultRowHeight;
 
     private static AppSettings _instance;
     public static AppSettings Instance

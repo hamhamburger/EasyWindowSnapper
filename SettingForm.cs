@@ -9,11 +9,9 @@ using System;
 using System.Windows.Forms;
 using static AppSettings;
 
+
 public class SettingsForm : Form
 {
-    private const double DefaultZoomRatio = 0.015;
-    private const double DefaultLeftScreenRatio = 0.6;
-    private const int DefaultMinWindowWidth = 661;
     private static readonly List<string> DefaultIgnoreWindowTitles = new List<string> { "Windows 入力エクスペリエンス", "設定", "メール" };
 
     private ComboBox _middleForwardButtonClickActionComboBox;
@@ -24,8 +22,16 @@ public class SettingsForm : Form
     private NumericUpDown _leftScreenRatioNumericUpDown;
     private NumericUpDown _minWindowWidthNumericUpDown;
     private TextBox _ignoreWindowTitlesTextBox;
+
+    private NumericUpDown _maxDisplayRowsNumericUpDown;
+    private NumericUpDown _rowHeightNumericUpDown;
+
     private Button _saveButton;
     private Button _resetButton;
+
+    private int buttonMargin = 10;
+    private int buttonWidth = 100;
+    private int buttonHeight = 40;
     public class ComboBoxItem
     {
         public ButtonAction Value { get; set; }
@@ -42,7 +48,7 @@ public class SettingsForm : Form
         var culture = System.Threading.Thread.CurrentThread.CurrentUICulture;
 
         Text = "Settings";
-        Size = new Size(600, 550);
+        Size = new Size(650, 650);
 
         // 各コントロールの初期化
         var middleForwardClickActionLabel = new Label
@@ -102,7 +108,7 @@ public class SettingsForm : Form
 
         var leftScreenRatioLabel = new Label
         {
-            Text = "右にウィンドウが存在しない状態で左にスナップした時モニターの何割を使うか:",
+            Text = "スナップしたの左のウィンドウがモニタの何割使うか（デフォルト）:",
             Location = new Point(20, 200),
             AutoSize = true,
         };
@@ -146,21 +152,50 @@ public class SettingsForm : Form
             Text = string.Join(",", DefaultIgnoreWindowTitles)
         };
 
+        var maxDisplayRowsLabel = new Label
+        {
+            Text = "ウィンドウ一覧画面で表示する数(反映には再起動が必要です):",
+            Location = new Point(20, 380),
+            AutoSize = true,
+        };
+        _maxDisplayRowsNumericUpDown = new NumericUpDown
+        {
+            Location = new Point(20, 400),
+            Width = 200,
+            Minimum = 1,
+            Maximum = 100,
+            DecimalPlaces = 0,
+            Value = DefaultMaxDisplayRows
+        };
+
+        var rowHeightLabel = new Label
+        {
+            Text = "行の高さ:",
+            Location = new Point(20, 440),
+            AutoSize = true,
+        };
+        _rowHeightNumericUpDown = new NumericUpDown
+        {
+            Location = new Point(20, 460),
+            Width = 200,
+            Minimum = 10,
+            Maximum = 200,
+            DecimalPlaces = 0,
+            Value = DefaultRowHeight
+        };
+
         _saveButton = new Button
         {
             Text = "Save",
-            Size = new Size(100, 40),
-            Location = new Point(400, 410)
-
+            Size = new Size(buttonWidth, buttonHeight),
+            Location = new Point(600 - buttonMargin - buttonWidth, 550 - buttonMargin - buttonHeight) // Adjusted x and y coordinate to move to bottom right
         };
+
         _resetButton = new Button
         {
             Text = "Reset",
-            Size = new Size(100, 40),
-            // フォームの中央
-
-            Location = new Point(290, 410)
-
+            Size = new Size(buttonWidth, buttonHeight),
+            Location = new Point(600 - buttonMargin - 2 * buttonWidth, 550 - buttonMargin - buttonHeight) // Adjusted x and y coordinate to move to bottom right, and give space for Save button
         };
 
 
@@ -207,6 +242,10 @@ public class SettingsForm : Form
         Controls.Add(_minWindowWidthNumericUpDown);
         Controls.Add(ignoreWindowTitlesLabel);
         Controls.Add(_ignoreWindowTitlesTextBox);
+        Controls.Add(maxDisplayRowsLabel);
+        Controls.Add(_maxDisplayRowsNumericUpDown);
+        Controls.Add(rowHeightLabel);
+        Controls.Add(_rowHeightNumericUpDown);
         Controls.Add(_resetButton);
         Controls.Add(_saveButton);
 
@@ -242,6 +281,8 @@ public class SettingsForm : Form
         _leftScreenRatioNumericUpDown.Value = (decimal)settings.LeftScreenRatio;
         _minWindowWidthNumericUpDown.Value = settings.MinWindowWidth;
         _ignoreWindowTitlesTextBox.Text = string.Join(",", settings.IgnoreWindowTitles);
+        _maxDisplayRowsNumericUpDown.Value = settings.MaxDisplayRows;
+        _rowHeightNumericUpDown.Value = settings.RowHeight;
     }
     private void ResetSettings(object sender, EventArgs e)
     {
@@ -251,6 +292,8 @@ public class SettingsForm : Form
         _leftScreenRatioNumericUpDown.Value = (decimal)DefaultLeftScreenRatio;
         _minWindowWidthNumericUpDown.Value = DefaultMinWindowWidth;
         _ignoreWindowTitlesTextBox.Text = string.Join(",", DefaultIgnoreWindowTitles);
+        _maxDisplayRowsNumericUpDown.Value = DefaultMaxDisplayRows;
+        _rowHeightNumericUpDown.Value = DefaultRowHeight;
     }
 
     private void SaveSettings(object sender, EventArgs e)
@@ -267,6 +310,8 @@ public class SettingsForm : Form
             AppSettings.Instance.LeftScreenRatio = (double)_leftScreenRatioNumericUpDown.Value;
             AppSettings.Instance.MinWindowWidth = (int)_minWindowWidthNumericUpDown.Value;
             AppSettings.Instance.IgnoreWindowTitles = _ignoreWindowTitlesTextBox.Text.Split(',').ToList();
+            AppSettings.Instance.MaxDisplayRows = (int)_maxDisplayRowsNumericUpDown.Value;
+            AppSettings.Instance.RowHeight = (int)_rowHeightNumericUpDown.Value;
 
             // Save settings using the singleton instance
             AppSettings.Instance.SaveSettings();

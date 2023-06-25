@@ -49,8 +49,9 @@ public partial class WindowSelector : Form
     public const int GCL_HICONSM = -34;
     public const int GCL_HICON = -14;
 
-    private const int RowHeight = 60;
-    private const int MaxDisplayRows = 12;
+    private static int RowHeight => AppSettings.Instance.RowHeight;
+    private static int MaxDisplayRows => AppSettings.Instance.MaxDisplayRows;
+
 
     private Bitmap ResizeIconBitmap(Icon icon, int width, int height)
     {
@@ -124,7 +125,7 @@ public partial class WindowSelector : Form
         _windows = windows ?? new List<WindowItem>();
 
         _targetIndex = 0;
-        
+
 
         this.FormBorderStyle = FormBorderStyle.None; // Hide title bar
         this.Enabled = false; // Disable mouse and keyboard interactions
@@ -141,10 +142,12 @@ public partial class WindowSelector : Form
             Dock = DockStyle.Fill,
             AllowUserToAddRows = false,
             Font = new Font("Microsoft Sans Serif", 18.0f, FontStyle.Regular, GraphicsUnit.Pixel),
-                ScrollBars = ScrollBars.None, 
+            ScrollBars = ScrollBars.None,
         };
-        dgvWindows.Size = new Size(800, RowHeight * MaxDisplayRows);
-        this.Size = new Size(800, RowHeight * MaxDisplayRows);
+        int dgvPaddingAndMargin = dgvWindows.Margin.Top + dgvWindows.Margin.Bottom + dgvWindows.Padding.Top + dgvWindows.Padding.Bottom;
+        dgvWindows.Size = new Size(800, RowHeight * MaxDisplayRows + dgvPaddingAndMargin);
+        this.Size = new Size(800, RowHeight * MaxDisplayRows + dgvPaddingAndMargin + this.Padding.Top + this.Padding.Bottom);
+
         dgvWindows.ColumnHeadersVisible = false;
         dgvWindows.Rows.Clear();
 
@@ -219,7 +222,8 @@ public partial class WindowSelector : Form
         Size standardIconSize = new Size(RowHeight, RowHeight);
 
         dgvWindows.Rows.Clear();
-        foreach (var window in _windows)
+        // foreach (var window in _windows) TODO 確認
+        foreach (var window in new List<WindowItem>(_windows))
         {
             Bitmap resizedIcon;
             try
