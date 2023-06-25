@@ -21,8 +21,6 @@ public class SplitScreenApp
     const int WS_EX_LAYERED = 0x80000;
     const int LWA_ALPHA = 0x2;
 
-    private HashSet<IntPtr> transparentedWindows = new HashSet<IntPtr>();
-
     private const byte AC_SRC_OVER = 0x00;
     private const byte AC_SRC_ALPHA = 0x01;
     private const int ULW_ALPHA = 0x00000002;
@@ -654,16 +652,7 @@ public class SplitScreenApp
             _targetWindowIndex = 0;
             _windowSelector.Hide();
 
-            // transParentedWindowsをループする
-            // 透過を解除する
-            foreach (var handle in transparentedWindows)
-            {
 
-
-                // SetWindowTransparency(handle, 255);
-
-            }
-            transparentedWindows.Clear();
 
 
         }
