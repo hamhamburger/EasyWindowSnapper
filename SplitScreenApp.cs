@@ -651,15 +651,16 @@ public class SplitScreenApp
             _windows.Clear();
             _targetWindowIndex = 0;
             _windowSelector.Hide();
-
-
-
-
         }
         if (e.ReleasedButton == MouseButtons.XButton1)
         {
             isBackButtonPressed = false;
             CompleteResize();
+
+            // TODO
+            _windows.Clear();
+            _targetWindowIndex = 0;
+            _windowSelector.Hide();
         }
     }
 
