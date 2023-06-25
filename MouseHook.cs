@@ -108,6 +108,9 @@ public static class MouseHook
 
                 if (Array.IndexOf(XBUTTON1, hookStruct.mouseData) >= 0)
                 {
+                    if (ForwardButtonDown){
+                         return (IntPtr)1;
+                    }
                     BackButtonDown = true;
 
                     return (IntPtr)1;
@@ -117,7 +120,9 @@ public static class MouseHook
 
 
 
-                    // Forward button down
+                    if (BackButtonDown){
+                         return (IntPtr)1;
+                    }
                     ForwardButtonDown = true;
 
                     return (IntPtr)1;
@@ -298,26 +303,6 @@ public static class MouseHook
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr GetModuleHandle(string lpModuleName);
 
-
-    [StructLayout(LayoutKind.Explicit)]
-    struct MOUSEKEYBDHARDWAREINPUT
-    {
-        [FieldOffset(0)]
-        public MOUSEINPUT Mouse;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    struct MOUSEINPUT
-    {
-        public int dx;
-        public int dy;
-        public uint mouseData;
-        public uint dwFlags;
-        public uint time;
-        public IntPtr dwExtraInfo;
-    }
-
-    const uint INPUT_MOUSE = 0;
 
 
 }
