@@ -328,14 +328,17 @@ public class SplitScreenApp
         MoveForeGroundWindow(hwnd);
     }
 
-    private void MoveForeGroundWindow(IntPtr hwnd){
-        if(false){
+    private void MoveForeGroundWindow(IntPtr hwnd)
+    {
+        if (false)
+        {
             SetForegroundWindow(hwnd);
         }
-        else{
-             SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-               SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-    
+        else
+        {
+            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+            SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+
         }
 
     }
@@ -542,10 +545,6 @@ public class SplitScreenApp
             }
         }
 
-        System.Diagnostics.Debug.WriteLine("left");
-        System.Diagnostics.Debug.WriteLine(leftWindowRoot);
-        System.Diagnostics.Debug.WriteLine("right");
-        System.Diagnostics.Debug.WriteLine(rightWindowRoot);
 
         return (leftWindowRoot, rightWindowRoot);
     }
@@ -607,8 +606,6 @@ public class SplitScreenApp
                 {
                     return true;
                 }
-                System.Diagnostics.Debug.WriteLine(title.ToString());
-
                 windows.Add(new WindowItem
                 {
                     Handle = hWnd,
@@ -772,11 +769,11 @@ public class SplitScreenApp
                     MonitorWidth = GetMonitorWorkingArea(monitorIndex).Width,
                     MonitorIndex = monitorIndex
                 };
-               MoveForeGroundWindow(rightWindowRoot);
+                MoveForeGroundWindow(rightWindowRoot);
             }
             // TODO
-            
-           
+
+
             // MoveForeGroundWindow(context.RightWindow);
 
             ResizeWindowBasedOnDelta(e, context);
@@ -788,9 +785,6 @@ public class SplitScreenApp
         if (_windows.Count == 0)
         {
             _windows = await GetAllWindowsOnCurrentDesktopAsync(monitorIndex);
-
-
-
             var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
             // _windowsのleftWindowとrightWindowにtypeをセット
             foreach (var window in _windows)
@@ -810,8 +804,6 @@ public class SplitScreenApp
             _windowSelector.Show();
             _windowSelector.UpdateWindows(_windows);
 
-            // SetWindowTransparency(leftWindowRoot, 200);
-            // SetWindowTransparency(rightWindowRoot, 200);
 
             return;
 
@@ -838,9 +830,84 @@ public class SplitScreenApp
 
             case MouseButtons.Left:
                 SnapWindow(hwnd, monitorIndex, true);
+                IntPtr rightWindowHandle = IntPtr.Zero;
+
+                foreach (var window in _windows)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Window handle: {window.Handle}");
+                    System.Diagnostics.Debug.WriteLine($"Window type: {window.type}");
+                    if (window.Handle == hwnd)
+                    {
+
+                        if (window.type == WindowItemType.RIGHT)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"left to right");
+                            rightWindowHandle = window.Handle;
+                        }
+                        window.type = WindowItemType.LEFT;
+                    }
+                    else if (window.type == WindowItemType.LEFT)
+                    {
+                        window.type = null;
+                    }
+
+                }
+
+                // 右のウィンドウを左に移動した場合
+                // 現在右にあるウィンドウのtypeをRIGHTにする
+                if (hwnd == rightWindowHandle)
+                {
+                    var (currentLeftWindow, currentRightWindow) = GetLeftAndRightWindow(monitorIndex);
+                    foreach (var window in _windows)
+                    {
+                        if (window.Handle == currentRightWindow)
+                        {
+                            window.type = WindowItemType.RIGHT;
+                            break;
+                        }
+                    }
+                }
+                _windowSelector.UpdateWindows(_windows);
+
                 break;
             case MouseButtons.Right:
                 SnapWindow(hwnd, monitorIndex, false);
+                IntPtr leftWindowHandle = IntPtr.Zero;
+
+                foreach (var window in _windows)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Window handle: {window.Handle}");
+                    System.Diagnostics.Debug.WriteLine($"Window type: {window.type}");
+                    if (window.Handle == hwnd)
+                    {
+                        if (window.type == WindowItemType.LEFT)
+                        {
+                            System.Diagnostics.Debug.WriteLine($"right to left");
+                            leftWindowHandle = window.Handle;
+                        }
+                        window.type = WindowItemType.RIGHT;
+                    }
+                    else if (window.type == WindowItemType.RIGHT)
+                    {
+                        window.type = null;
+                    }
+                }
+
+                // 左のウィンドウを右に移動した場合
+                // 現在左にあるウィンドウのtypeをLEFTにする
+                if (hwnd == leftWindowHandle)
+                {
+                    var (currentLeftWindow, currentRightWindow) = GetLeftAndRightWindow(monitorIndex);
+                    foreach (var window in _windows)
+                    {
+                        if (window.Handle == currentLeftWindow)
+                        {
+                            window.type = WindowItemType.LEFT;
+                            break;
+                        }
+                    }
+                }
+                _windowSelector.UpdateWindows(_windows);
                 break;
             case MouseButtons.Middle:
 
@@ -848,8 +915,6 @@ public class SplitScreenApp
                 {
                     case ButtonAction.MINIMIZE_WINDOW:
                         MinimizeWindow(hwnd);
-
-
                         break;
 
                     case ButtonAction.CLOSE_WINDOW:
@@ -927,7 +992,6 @@ public class SplitScreenApp
             // 右のウィンドウを拡大
             if (context.LeftWindow == IntPtr.Zero)
             {
-                System.Diagnostics.Debug.WriteLine("LeftWindowHandle is null");
                 return;
             }
             int newRightWindowWidth = GetNewWindowWidth(context.RightWindow, context.ExtendPixel);
@@ -958,7 +1022,6 @@ public class SplitScreenApp
         int newOtherWindowWidth = context.MonitorWidth - newWindowWidth;
         if (newOtherWindowWidth < MinWindowWidth)
         {
-            System.Diagnostics.Debug.WriteLine("newOtherWindowWidth is too small");
             return;
         }
 

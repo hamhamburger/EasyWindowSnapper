@@ -121,7 +121,6 @@ public partial class WindowSelector : Form
     public WindowSelector(List<WindowItem>? windows)
     {
         _windows = windows ?? new List<WindowItem>();
-        System.Diagnostics.Debug.WriteLine($"Number of windows: {_windows.Count}");
 
         _targetIndex = 0;
         this.Size = new Size(800, 800); // Adjust as needed
@@ -196,7 +195,6 @@ public partial class WindowSelector : Form
     public void UpdateWindows(List<WindowItem>? windows)
     {
         _windows = windows ?? new List<WindowItem>();
-        System.Diagnostics.Debug.WriteLine($"Number of windows: {_windows.Count}");
 
         UpdateDataGridView();
     }
@@ -223,6 +221,7 @@ public partial class WindowSelector : Form
             // TODO パフォーマンス向上
             IntPtr hIcon = GetWindowIconCached(window.Handle);
             Icon appIcon = Icon.FromHandle(hIcon);
+
             Bitmap bitmap = appIcon.ToBitmap();
 
             // Resize the icon to the standard icon size
