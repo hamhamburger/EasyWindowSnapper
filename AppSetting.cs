@@ -25,6 +25,8 @@ public class AppSettings
 
     public const int DefaultRowHeight = 60;
 
+    public const bool DefaultIsDarkMode = false;
+
 
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public ButtonAction MiddleForwardButtonClickAction { get; set; } = ButtonAction.CLOSE_WINDOW;
@@ -39,7 +41,11 @@ public class AppSettings
 
     public int MaxDisplayRows { get; set; } = DefaultMaxDisplayRows;
 
+
     public int RowHeight { get; set; } = DefaultRowHeight;
+
+
+    public bool IsDarkMode { get; set; } = DefaultIsDarkMode;
 
     private static AppSettings _instance;
     public static AppSettings Instance

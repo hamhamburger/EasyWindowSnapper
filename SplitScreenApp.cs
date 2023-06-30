@@ -82,7 +82,6 @@ public class SplitScreenApp
     private WindowSelector _windowSelector;
 
     private List<WindowItem> _windows = new List<WindowItem>(); // 管理するウィンドウのリスト
-    private int _targetWindowIndex = 0; // 現在のターゲットウィンドウのインデックス
 
     public struct FLASHWINFO
     {
@@ -328,16 +327,11 @@ public class SplitScreenApp
 
     private void MoveForeGroundWindow(IntPtr hwnd)
     {
-        if (false)
-        {
-            SetForegroundWindow(hwnd);
-        }
-        else
-        {
-            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
-            SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 
-        }
+        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        SetForegroundWindow(hwnd);
+
 
     }
 
@@ -649,7 +643,8 @@ public class SplitScreenApp
         {
             // _windowsをクリア
             _windows.Clear();
-            _targetWindowIndex = 0;
+            _windowSelector.ResetIndex();
+            // ResetIndex();
             _windowSelector.Hide();
         }
         if (e.ReleasedButton == MouseButtons.XButton1)
@@ -659,7 +654,6 @@ public class SplitScreenApp
 
             // TODO
             _windows.Clear();
-            _targetWindowIndex = 0;
             _windowSelector.Hide();
         }
     }
@@ -913,6 +907,22 @@ public class SplitScreenApp
                         if (!IsWindow(hwnd))
                         {
                             _windowSelector.deleteWindow(hwnd);
+
+                            var (currentLeftWindow, currentRightWindow) = GetLeftAndRightWindow(monitorIndex);
+                            foreach (var window in _windows)
+                            {
+                                if (window.Handle == currentLeftWindow)
+                                {
+                                    window.type = WindowItemType.LEFT;
+
+                                }
+                                else if (window.Handle == currentRightWindow)
+                                {
+                                    window.type = WindowItemType.RIGHT;
+
+                                }
+                            }
+                            _windowSelector.UpdateWindows(_windows);
 
                         }
                         break;

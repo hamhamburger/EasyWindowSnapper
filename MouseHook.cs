@@ -38,16 +38,11 @@ public static class MouseHook
     // 定数の定義
     private const int WH_MOUSE_LL = 14;
 
-    public const uint MOUSEEVENTF_XDOWN = 0x0080;
-    public const uint MOUSEEVENTF_XUP = 0x0100;
     private static uint[] XBUTTON1 = new uint[2] { 0x0001, 65536 };
     private static uint[] XBUTTON2 = new uint[2] { 0x0002, 131072 };
     private static bool otherButtonPressedWhileSideButtonPressed = false;
 
-    public static event EventHandler BackButtonReleased = delegate { };
 
-    public static bool IgnoreMouseAction { get; set; } = false;
-    // Backボタンのプロパティ
     private static bool backButtonDown = false;
     public static bool BackButtonDown
     {

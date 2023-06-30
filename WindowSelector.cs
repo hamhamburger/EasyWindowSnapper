@@ -7,6 +7,14 @@ using WinSplit;
 
 public partial class WindowSelector : Form
 {
+
+    [DllImport("user32.dll", SetLastError = false)]
+    static extern IntPtr GetDesktopWindow();
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool SetForegroundWindow(IntPtr hWnd);
+
     [DllImport("user32.dll")]
     public static extern IntPtr SendMessage(IntPtr hWnd, int Msg, IntPtr wParam, IntPtr lParam);
 
@@ -14,6 +22,7 @@ public partial class WindowSelector : Form
     public static extern uint GetClassLong32(IntPtr hWnd, int nIndex);
 
     [DllImport("user32.dll", EntryPoint = "GetClassLongPtr")]
+
 
 
     public static extern IntPtr GetClassLong64(IntPtr hWnd, int nIndex);
@@ -51,6 +60,8 @@ public partial class WindowSelector : Form
 
     private static int RowHeight => AppSettings.Instance.RowHeight;
     private static int MaxDisplayRows => AppSettings.Instance.MaxDisplayRows;
+
+    private static bool IsDarkMode => AppSettings.Instance.IsDarkMode;
 
 
     private Bitmap ResizeIconBitmap(Icon icon, int width, int height)
@@ -114,14 +125,12 @@ public partial class WindowSelector : Form
         public int Bottom;
     }
 
-    // private PreviewForm previewForm;
-    private const int MaxDisplayItems = 15;
+
     private List<WindowItem>? _windows;
     private int _targetIndex;
-    private ListView listView;
-    // private PictureBox previewBox;
-    public WindowSelector(List<WindowItem>? windows)
+    public WindowSelector(List<WindowItem>? windows) : base()
     {
+        System.Diagnostics.Debug.WriteLine(IsDarkMode);
         _windows = windows ?? new List<WindowItem>();
 
         _targetIndex = 0;
@@ -133,25 +142,38 @@ public partial class WindowSelector : Form
         this.ShowInTaskbar = false;
         dgvWindows = new DataGridView
         {
-
+            ColumnHeadersVisible = false,
             AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
             RowTemplate = { Height = RowHeight },
             ReadOnly = true,
-            SelectionMode = DataGridViewSelectionMode.CellSelect,
+            SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             RowHeadersVisible = false,
             Dock = DockStyle.Fill,
             AllowUserToAddRows = false,
             Font = new Font("Microsoft Sans Serif", 18.0f, FontStyle.Regular, GraphicsUnit.Pixel),
             ScrollBars = ScrollBars.None,
+            BackgroundColor = IsDarkMode ? Color.Black : Color.White,
+            ForeColor = IsDarkMode ? Color.White : Color.Black,
+            CellBorderStyle = DataGridViewCellBorderStyle.None
+
         };
         int dgvPaddingAndMargin = dgvWindows.Margin.Top + dgvWindows.Margin.Bottom + dgvWindows.Padding.Top + dgvWindows.Padding.Bottom;
         dgvWindows.Size = new Size(800, RowHeight * MaxDisplayRows + dgvPaddingAndMargin);
         this.Size = new Size(800, RowHeight * MaxDisplayRows + dgvPaddingAndMargin + this.Padding.Top + this.Padding.Bottom);
 
-        dgvWindows.ColumnHeadersVisible = false;
         dgvWindows.Rows.Clear();
 
-        // Create and add icon column
+
+        // Color
+        dgvWindows.RowsDefaultCellStyle.BackColor = IsDarkMode ? Color.Black : Color.White;
+        dgvWindows.RowsDefaultCellStyle.ForeColor = IsDarkMode ? Color.White : Color.Black;
+        dgvWindows.CellBorderStyle = DataGridViewCellBorderStyle.None;
+        dgvWindows.GridColor = IsDarkMode ? Color.White : Color.Black;
+
+        // dgvWindows.DefaultCellStyle.SelectionBackColor = ColorTranslator.FromHtml("#f1ebeb");
+        dgvWindows.DefaultCellStyle.SelectionBackColor = ColorTranslator.FromHtml("#ece1e1");
+
+        dgvWindows.DefaultCellStyle.SelectionForeColor = dgvWindows.DefaultCellStyle.ForeColor;
         DataGridViewImageColumn iconColumn = new DataGridViewImageColumn
         {
             Name = "icon",
@@ -170,12 +192,11 @@ public partial class WindowSelector : Form
         };
         dgvWindows.Columns.Add(typeColumn);
 
-        // Create and add title column
         DataGridViewTextBoxColumn titleColumn = new DataGridViewTextBoxColumn
         {
             Name = "title",
             HeaderText = "Title",
-            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill // Set the title column to fill the remaining space
+            AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
         };
         dgvWindows.Columns.Add(titleColumn);
 
@@ -195,7 +216,16 @@ public partial class WindowSelector : Form
 
         this.TopMost = true;
 
+        SetStyle(ControlStyles.ResizeRedraw, true);
 
+
+    }
+
+    protected override void OnActivated(EventArgs e)
+    {
+        base.OnActivated(e);
+        IntPtr desktopHandle = GetDesktopWindow();
+        SetForegroundWindow(desktopHandle);
     }
 
     public void UpdateWindows(List<WindowItem>? windows)
@@ -222,7 +252,6 @@ public partial class WindowSelector : Form
         Size standardIconSize = new Size(RowHeight, RowHeight);
 
         dgvWindows.Rows.Clear();
-        // foreach (var window in _windows) TODO 確認
         foreach (var window in new List<WindowItem>(_windows))
         {
             Bitmap resizedIcon;
@@ -237,7 +266,6 @@ public partial class WindowSelector : Form
             }
             catch (ArgumentException)
             {
-                // アイコンの取得またはリサイズに失敗した場合、透明なアイコンを使用します。
                 resizedIcon = new Bitmap(transparentIconBitmap, standardIconSize);
             }
 
@@ -266,39 +294,40 @@ public partial class WindowSelector : Form
 
     private void UpdateHighlight()
     {
+
         // Ensure that there are windows to select from
         if (_windows == null || _windows.Count == 0)
         {
             return;
         }
 
-        // Clear the current selection in the DataGridView
-        dgvWindows.ClearSelection();
-
         // Ensure _targetIndex is within the valid range
         if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
         {
-            // Highlight the new cell
-            dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[2]; // 2 is the title column
+            // Highlight the new row
+            System.Diagnostics.Debug.WriteLine("OK");
+            dgvWindows.ClearSelection();  // Clear any previous selection
+            dgvWindows.Rows[_targetIndex].Selected = true;
         }
         else
         {
-            // Reset _targetIndex to 0 if it's out of range
+            System.Diagnostics.Debug.WriteLine("UpdateHighlight _targetIndex:" + _targetIndex + " is out of range");
             _targetIndex = 0;
 
-            // Highlight the first cell
+            // Highlight the first row
             if (dgvWindows.Rows.Count > 0)
             {
-                dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[2]; // 2 is the title column
+                dgvWindows.ClearSelection();  // Clear any previous selection
+                dgvWindows.Rows[_targetIndex].Selected = true;
             }
         }
-
-        // Ensure the selected row is visible
-        if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
-        {
-            dgvWindows.FirstDisplayedScrollingRowIndex = _targetIndex;
-        }
     }
+    public void ResetIndex()
+    {
+        _targetIndex = 0;
+        UpdateHighlight();
+    }
+
     public void SetFormToMonitor(int monitorIndex)
     {
         if (monitorIndex >= 0 && monitorIndex < Screen.AllScreens.Length)
@@ -329,6 +358,7 @@ public partial class WindowSelector : Form
 
         _targetIndex = (_targetIndex + 1) % _windows.Count;
         UpdateHighlight();
+        System.Diagnostics.Debug.WriteLine("SelectNextWindow _targetIndex:" + _targetIndex);
         return _windows[_targetIndex];
     }
 
@@ -359,6 +389,17 @@ public partial class WindowSelector : Form
     protected override void OnFormClosing(FormClosingEventArgs e)
     {
         base.OnFormClosing(e);
+    }
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            const int CS_DropSHADOW = 0x00020000;
+            CreateParams cp = base.CreateParams;
+            cp.ClassStyle |= CS_DropSHADOW;
+            return cp;
+        }
     }
 
 }
