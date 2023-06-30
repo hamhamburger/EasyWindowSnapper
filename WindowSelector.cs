@@ -130,16 +130,48 @@ public partial class WindowSelector : Form
     private int _targetIndex;
     public WindowSelector(List<WindowItem>? windows) : base()
     {
-        System.Diagnostics.Debug.WriteLine(IsDarkMode);
+        // ウィンドウのリストを設定する。リストがnullの場合は新たに作成する。
         _windows = windows ?? new List<WindowItem>();
-
         _targetIndex = 0;
 
+        // デバッグモードでダークモードのステータスを表示する
+        System.Diagnostics.Debug.WriteLine(IsDarkMode);
 
-        this.FormBorderStyle = FormBorderStyle.None; // Hide title bar
-        this.Enabled = false; // Disable mouse and keyboard interactions
+        // フォームの基本設定を行う
+        ConfigureForm();
+
+        // DataGridView (dgvWindows)の設定を行う
+        ConfigureDataGridView();
+
+        // DataGridViewの行、セル、列の設定を行う
+        ConfigureDataGridViewRowsAndCells();
+
+        // DataGridViewにアイコンとタイトルの列を追加する
+        AddColumnsToDataGridView();
+
+        // アイコンの設定を行う
+        SetupIcons();
+
+        // ウィンドウコントロールを追加する
+        this.Controls.Add(dgvWindows);
+
+        // このウィンドウを最前面に保つ
+        this.TopMost = true;
+
+        // コントロールのスタイルを設定する
+        SetStyle(ControlStyles.ResizeRedraw, true);
+    }
+
+    private void ConfigureForm()
+    {
+        this.FormBorderStyle = FormBorderStyle.None;
+        this.Enabled = false;
         this.StartPosition = FormStartPosition.CenterScreen;
         this.ShowInTaskbar = false;
+    }
+
+    private void ConfigureDataGridView()
+    {
         dgvWindows = new DataGridView
         {
             ColumnHeadersVisible = false,
@@ -155,25 +187,30 @@ public partial class WindowSelector : Form
             BackgroundColor = IsDarkMode ? Color.Black : Color.White,
             ForeColor = IsDarkMode ? Color.White : Color.Black,
             CellBorderStyle = DataGridViewCellBorderStyle.None
-
         };
+
         int dgvPaddingAndMargin = dgvWindows.Margin.Top + dgvWindows.Margin.Bottom + dgvWindows.Padding.Top + dgvWindows.Padding.Bottom;
         dgvWindows.Size = new Size(800, RowHeight * MaxDisplayRows + dgvPaddingAndMargin);
         this.Size = new Size(800, RowHeight * MaxDisplayRows + dgvPaddingAndMargin + this.Padding.Top + this.Padding.Bottom);
-
         dgvWindows.Rows.Clear();
+    }
 
-
-        // Color
+    private void ConfigureDataGridViewRowsAndCells()
+    {
+        // セルの色設定
         dgvWindows.RowsDefaultCellStyle.BackColor = IsDarkMode ? Color.Black : Color.White;
         dgvWindows.RowsDefaultCellStyle.ForeColor = IsDarkMode ? Color.White : Color.Black;
         dgvWindows.CellBorderStyle = DataGridViewCellBorderStyle.None;
         dgvWindows.GridColor = IsDarkMode ? Color.White : Color.Black;
 
-        // dgvWindows.DefaultCellStyle.SelectionBackColor = ColorTranslator.FromHtml("#f1ebeb");
+        // 選択時のハイライト色
         dgvWindows.DefaultCellStyle.SelectionBackColor = ColorTranslator.FromHtml("#ece1e1");
-
         dgvWindows.DefaultCellStyle.SelectionForeColor = dgvWindows.DefaultCellStyle.ForeColor;
+    }
+
+    private void AddColumnsToDataGridView()
+    {
+        // アイコン、タイプ、タイトルの列をDataGridViewに追加
         DataGridViewImageColumn iconColumn = new DataGridViewImageColumn
         {
             Name = "icon",
@@ -199,7 +236,11 @@ public partial class WindowSelector : Form
             AutoSizeMode = DataGridViewAutoSizeColumnMode.Fill
         };
         dgvWindows.Columns.Add(titleColumn);
+    }
 
+    private void SetupIcons()
+    {
+        // アイコンパスを設定し、アイコンを読み込む
         string leftIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_left.ico");
         string rightIconPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "icons/split_right.ico");
 
@@ -211,16 +252,7 @@ public partial class WindowSelector : Form
 
         transparentIconBitmap = new Bitmap(1, 1);
         transparentIconBitmap.MakeTransparent();
-
-        this.Controls.Add(dgvWindows);
-
-        this.TopMost = true;
-
-        SetStyle(ControlStyles.ResizeRedraw, true);
-
-
     }
-
     protected override void OnActivated(EventArgs e)
     {
         base.OnActivated(e);
