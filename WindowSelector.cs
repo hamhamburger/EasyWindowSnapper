@@ -4,6 +4,7 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using WinSplit;
+using System.Drawing.Imaging;
 
 public partial class WindowSelector : Form
 {
@@ -220,14 +221,6 @@ public partial class WindowSelector : Form
         };
         dgvWindows.Columns.Add(iconColumn);
 
-        DataGridViewImageColumn typeColumn = new DataGridViewImageColumn
-        {
-            Name = "type",
-            HeaderText = "Type",
-            ImageLayout = DataGridViewImageCellLayout.Normal,
-            Width = RowHeight
-        };
-        dgvWindows.Columns.Add(typeColumn);
 
         DataGridViewTextBoxColumn titleColumn = new DataGridViewTextBoxColumn
         {
@@ -278,52 +271,70 @@ public partial class WindowSelector : Form
         }
         UpdateDataGridView();
     }
+public void UpdateDataGridView()
+{
+    Size standardIconSize = new Size(RowHeight, RowHeight);
 
-    public void UpdateDataGridView()
+    dgvWindows.Rows.Clear();
+    foreach (var window in new List<WindowItem>(_windows))
     {
-        Size standardIconSize = new Size(RowHeight, RowHeight);
-
-        dgvWindows.Rows.Clear();
-        foreach (var window in new List<WindowItem>(_windows))
+        Bitmap resizedIcon;
+        try
         {
-            Bitmap resizedIcon;
-            try
-            {
-                IntPtr hIcon = GetWindowIconCached(window.Handle);
-                Icon appIcon = Icon.FromHandle(hIcon);
-                Bitmap bitmap = appIcon.ToBitmap();
+            IntPtr hIcon = GetWindowIconCached(window.Handle);
+            Icon appIcon = Icon.FromHandle(hIcon);
+            Bitmap bitmap = appIcon.ToBitmap();
 
-                // Resize the icon to the standard icon size
-                resizedIcon = new Bitmap(bitmap, standardIconSize);
-            }
-            catch (ArgumentException)
-            {
-                resizedIcon = new Bitmap(transparentIconBitmap, standardIconSize);
-            }
-
-            // Create cells
-            var appImage = new DataGridViewImageCell() { Value = resizedIcon };
-            var textCell = new DataGridViewTextBoxCell() { Value = window.Title };
-
-            Bitmap typeIcon = transparentIconBitmap;
-
-            if (window.type == WindowItemType.LEFT)
-            {
-                typeIcon = splitLeftIconBitmap;
-            }
-            else if (window.type == WindowItemType.RIGHT)
-            {
-                typeIcon = splitRightIconBitmap;
-            }
-
-            var typeImageCell = new DataGridViewImageCell() { Value = typeIcon };
-
-            dgvWindows.Rows.Add(new object[] { appImage.Value, typeImageCell.Value, textCell.Value });
+            // Resize the icon to the standard icon size
+            resizedIcon = new Bitmap(bitmap, standardIconSize);
         }
-        dgvWindows.ClearSelection();
-        UpdateHighlight();
-    }
+        catch (ArgumentException)
+        {
+            resizedIcon = new Bitmap(transparentIconBitmap, standardIconSize);
+        }
 
+        Bitmap typeIcon = transparentIconBitmap;
+
+        if (window.type == WindowItemType.LEFT)
+        {
+            typeIcon = splitLeftIconBitmap;
+        }
+        else if (window.type == WindowItemType.RIGHT)
+        {
+            typeIcon = splitRightIconBitmap;
+        }
+
+        // Scale typeIcon to fit resizedIcon
+        typeIcon = new Bitmap(typeIcon, standardIconSize);
+
+        float transparency = 0.8f;
+        Bitmap transparentTypeIcon = new Bitmap(typeIcon.Width, typeIcon.Height);
+        using (Graphics g = Graphics.FromImage(transparentTypeIcon))
+        {
+            ColorMatrix colorMatrix = new ColorMatrix();
+            colorMatrix.Matrix33 = transparency;
+            ImageAttributes attributes = new ImageAttributes();
+            attributes.SetColorMatrix(colorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+
+            g.DrawImage(typeIcon, new Rectangle(0, 0, typeIcon.Width, typeIcon.Height),
+                0, 0, typeIcon.Width, typeIcon.Height, GraphicsUnit.Pixel, attributes);
+        }
+
+        // Combine icons
+        using (Graphics g = Graphics.FromImage(resizedIcon))
+        {
+            g.DrawImage(transparentTypeIcon, new Point(0, 0));
+        }
+
+        // Create cells
+        var appImage = new DataGridViewImageCell() { Value = resizedIcon };
+        var textCell = new DataGridViewTextBoxCell() { Value = window.Title };
+
+        dgvWindows.Rows.Add(new object[] { appImage.Value, textCell.Value });
+    }
+    dgvWindows.ClearSelection();
+    UpdateHighlight();
+}
     private void UpdateHighlight()
     {
 
