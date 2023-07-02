@@ -8,9 +8,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- <RuntimeIdentifier>win-x64</RuntimeIdentifier> -->
   </PropertyGroup>
-  
   <ItemGroup>
-    <Resource Include="icon.ico" />
+    <Resource Include="icons/icon.ico" />
     <Reference Include="System.Windows.Forms" />
     <FolderToCopy Include="icons\**" />
   </ItemGroup>
