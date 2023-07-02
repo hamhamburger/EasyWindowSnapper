@@ -3,9 +3,7 @@ using WinSplit;
 using System.Text.Json.Serialization;
 
 
-// MiddleForwardButtonClickActionの配列
-// MiddleBackButtonClickActionの配列
-// enum
+
 public class AppSettings
 {
     public enum ButtonAction

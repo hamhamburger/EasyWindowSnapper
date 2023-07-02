@@ -60,6 +60,10 @@ public partial class WindowSelector : Form
     public const int GCL_HICON = -14;
 
     private static int RowHeight => AppSettings.Instance.RowHeight;
+
+    private static int Padding = 10;
+
+       private static int TotalRowHeight => RowHeight + Padding * 2;
     private static int MaxDisplayRows => AppSettings.Instance.MaxDisplayRows;
 
     private static bool IsDarkMode => AppSettings.Instance.IsDarkMode;
@@ -129,7 +133,7 @@ public partial class WindowSelector : Form
 
     private List<WindowItem>? _windows;
     private int _targetIndex;
-    public WindowSelector(List<WindowItem>? windows) : base()
+       public WindowSelector(List<WindowItem>? windows) : base()
     {
         // ウィンドウのリストを設定する。リストがnullの場合は新たに作成する。
         _windows = windows ?? new List<WindowItem>();
@@ -143,9 +147,6 @@ public partial class WindowSelector : Form
 
         // DataGridView (dgvWindows)の設定を行う
         ConfigureDataGridView();
-
-        // DataGridViewの行、セル、列の設定を行う
-        ConfigureDataGridViewRowsAndCells();
 
         // DataGridViewにアイコンとタイトルの列を追加する
         AddColumnsToDataGridView();
@@ -171,13 +172,13 @@ public partial class WindowSelector : Form
         this.ShowInTaskbar = false;
     }
 
-    private void ConfigureDataGridView()
+   private void ConfigureDataGridView()
     {
-        dgvWindows = new DataGridView
+            dgvWindows = new DataGridView
         {
             ColumnHeadersVisible = false,
-            AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.AllCells,
-            RowTemplate = { Height = RowHeight },
+            AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None,  // Set to None.
+            RowTemplate = { Height = TotalRowHeight },  // Use the total row height.
             ReadOnly = true,
             SelectionMode = DataGridViewSelectionMode.FullRowSelect,
             RowHeadersVisible = false,
@@ -187,17 +188,10 @@ public partial class WindowSelector : Form
             ScrollBars = ScrollBars.None,
             BackgroundColor = IsDarkMode ? Color.Black : Color.White,
             ForeColor = IsDarkMode ? Color.White : Color.Black,
-            CellBorderStyle = DataGridViewCellBorderStyle.None
+            CellBorderStyle = DataGridViewCellBorderStyle.None,
         };
 
-        int dgvPaddingAndMargin = dgvWindows.Margin.Top + dgvWindows.Margin.Bottom + dgvWindows.Padding.Top + dgvWindows.Padding.Bottom;
-        dgvWindows.Size = new Size(800, RowHeight * MaxDisplayRows + dgvPaddingAndMargin);
-        this.Size = new Size(800, RowHeight * MaxDisplayRows + dgvPaddingAndMargin + this.Padding.Top + this.Padding.Bottom);
-        dgvWindows.Rows.Clear();
-    }
 
-    private void ConfigureDataGridViewRowsAndCells()
-    {
         // セルの色設定
         dgvWindows.RowsDefaultCellStyle.BackColor = IsDarkMode ? Color.Black : Color.White;
         dgvWindows.RowsDefaultCellStyle.ForeColor = IsDarkMode ? Color.White : Color.Black;
@@ -207,7 +201,17 @@ public partial class WindowSelector : Form
         // 選択時のハイライト色
         dgvWindows.DefaultCellStyle.SelectionBackColor = ColorTranslator.FromHtml("#ece1e1");
         dgvWindows.DefaultCellStyle.SelectionForeColor = dgvWindows.DefaultCellStyle.ForeColor;
+
+        // 行のパディングを設定
+        dgvWindows.RowTemplate.DefaultCellStyle.Padding = new Padding(0, Padding, 0, Padding);
+
+        int dgvPaddingAndMargin = dgvWindows.Margin.Top + dgvWindows.Margin.Bottom + dgvWindows.Padding.Top + dgvWindows.Padding.Bottom;
+         dgvWindows.Size = new Size(800, TotalRowHeight * MaxDisplayRows);
+        this.Size = new Size(800, TotalRowHeight * MaxDisplayRows  );
+        dgvWindows.Rows.Clear();
     }
+
+
 
     private void AddColumnsToDataGridView()
     {
@@ -320,13 +324,11 @@ public void UpdateDataGridView()
                 0, 0, typeIcon.Width, typeIcon.Height, GraphicsUnit.Pixel, attributes);
         }
 
-        // Combine icons
         using (Graphics g = Graphics.FromImage(resizedIcon))
         {
             g.DrawImage(transparentTypeIcon, new Point(0, 0));
         }
 
-        // Create cells
         var appImage = new DataGridViewImageCell() { Value = resizedIcon };
         var textCell = new DataGridViewTextBoxCell() { Value = window.Title };
 
@@ -335,36 +337,37 @@ public void UpdateDataGridView()
     dgvWindows.ClearSelection();
     UpdateHighlight();
 }
-    private void UpdateHighlight()
+  private void UpdateHighlight()
+{
+
+    if (_windows == null || _windows.Count == 0)
     {
+        return;
+    }
 
-        // Ensure that there are windows to select from
-        if (_windows == null || _windows.Count == 0)
-        {
-            return;
-        }
+    if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
+    {
+        System.Diagnostics.Debug.WriteLine("OK");
+        dgvWindows.ClearSelection(); 
+        dgvWindows.Rows[_targetIndex].Selected = true;
 
-        // Ensure _targetIndex is within the valid range
-        if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
+        dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[0];
+    }
+    else
+    {
+        System.Diagnostics.Debug.WriteLine("UpdateHighlight _targetIndex:" + _targetIndex + " is out of range");
+        _targetIndex = 0;
+
+        if (dgvWindows.Rows.Count > 0)
         {
-            // Highlight the new row
-            System.Diagnostics.Debug.WriteLine("OK");
-            dgvWindows.ClearSelection();  // Clear any previous selection
+            dgvWindows.ClearSelection(); 
             dgvWindows.Rows[_targetIndex].Selected = true;
-        }
-        else
-        {
-            System.Diagnostics.Debug.WriteLine("UpdateHighlight _targetIndex:" + _targetIndex + " is out of range");
-            _targetIndex = 0;
 
-            // Highlight the first row
-            if (dgvWindows.Rows.Count > 0)
-            {
-                dgvWindows.ClearSelection();  // Clear any previous selection
-                dgvWindows.Rows[_targetIndex].Selected = true;
-            }
+            dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[0];
         }
     }
+}
+
     public void ResetIndex()
     {
         _targetIndex = 0;

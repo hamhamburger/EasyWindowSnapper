@@ -52,7 +52,6 @@ public class SplitScreenApp
 
     // 戻るボタンを押しているかどうか
     private bool isBackButtonPressed = false;
-    // var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
     IntPtr resizingLeftWindow = IntPtr.Zero;
     IntPtr resizingRightWindow = IntPtr.Zero;
     int resizingMonitorWidth = 0;
@@ -250,10 +249,8 @@ public class SplitScreenApp
 
     }
 
-    // Settings menu item click handler
     private void OpenSettings(object sender, EventArgs e)
     {
-        // Open the settings form
         var settingsForm = new SettingsForm();
         settingsForm.Show();
     }
@@ -644,7 +641,6 @@ public class SplitScreenApp
             // _windowsをクリア
             _windows.Clear();
             _windowSelector.ResetIndex();
-            // ResetIndex();
             _windowSelector.Hide();
         }
         if (e.ReleasedButton == MouseButtons.XButton1)
@@ -744,7 +740,6 @@ public class SplitScreenApp
                 isBackButtonPressed = true;
                 var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
                 MoveForeGroundWindow(leftWindowRoot);
-                // MoveForeGroundWindow(rightWindowRoot);
                 context = new ResizingContext
                 {
                     LeftWindow = leftWindowRoot,
@@ -755,10 +750,6 @@ public class SplitScreenApp
                 };
                 MoveForeGroundWindow(rightWindowRoot);
             }
-            // TODO
-
-
-            // MoveForeGroundWindow(context.RightWindow);
 
             ResizeWindowBasedOnDelta(e, context);
         }
@@ -961,7 +952,6 @@ public class SplitScreenApp
         {
         }
     }
-    // TODO削除
     public static string GetWindowTitle(IntPtr hWnd)
     {
         int length = GetWindowTextLength(hWnd);
@@ -1073,8 +1063,6 @@ public class SplitScreenApp
 
     private static bool IsSmall(IntPtr width, IntPtr height)
     {
-        // width とheightの積が 10000 以下なら小さいと判定する
-        // return width * height <= 1000;
         if (width < 100 || height < 100)
         {
             return true;

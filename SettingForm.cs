@@ -201,7 +201,6 @@ public class SettingsForm : Form
 
         if (culture.Name.StartsWith("en"))
         {
-            // If the system's current UI culture is English, use English labels
             middleForwardClickActionLabel.Text = "Action for middle button click while back button pressed:";
             zoomRatioLabel.Text = "Zoom ratio for window width adjustment with back+wheel:";
             leftScreenRatioLabel.Text = "Ratio of left window in window snapping:";
@@ -313,15 +312,12 @@ public class SettingsForm : Form
             AppSettings.Instance.MaxDisplayRows = (int)_maxDisplayRowsNumericUpDown.Value;
             AppSettings.Instance.RowHeight = (int)_rowHeightNumericUpDown.Value;
 
-            // Save settings using the singleton instance
             AppSettings.Instance.SaveSettings();
 
-            // Show a message that settings have been saved successfully
             MessageBox.Show("Settings saved successfully.");
         }
         catch (Exception ex)
         {
-            // Log the error message and also notify the user
             Console.WriteLine($"Failed to save settings: {ex}");
             MessageBox.Show("Failed to save settings. Please check if the input values are in correct format.");
         }

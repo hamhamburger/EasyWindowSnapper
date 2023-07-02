@@ -206,7 +206,6 @@ public static class MouseHook
         {
             if (Array.IndexOf(XBUTTON1, hookStruct.mouseData) >= 0)
             {
-                // Check if no other button was pressed while the back button was down
                 if (!otherButtonPressedWhileSideButtonPressed)
                 {
 
@@ -220,7 +219,6 @@ public static class MouseHook
             }
                 if (Array.IndexOf(XBUTTON2, hookStruct.mouseData) >= 0)
             {
-                // Check if no other button was pressed while the back button was down
                 if (!otherButtonPressedWhileSideButtonPressed)
                 {
 
