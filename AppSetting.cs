@@ -1,5 +1,5 @@
 using System.Text.Json;
-using WinSplit;
+using EasyWindowSnapper;
 using System.Text.Json.Serialization;
 
 

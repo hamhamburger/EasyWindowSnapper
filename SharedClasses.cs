@@ -1,4 +1,4 @@
-namespace WinSplit
+namespace EasyWindowSnapper
 {
     public class WindowItem
     {

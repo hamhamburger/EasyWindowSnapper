@@ -2,7 +2,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using static MouseHook;
-using WinSplit;
+using EasyWindowSnapper;
 using System.Threading.Tasks;
 using System.Drawing.Imaging;
 using static AppSettings;

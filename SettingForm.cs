@@ -3,7 +3,7 @@ using System.Runtime.InteropServices;
 using System.Windows.Forms;
 using System.Text.Json;
 using System.Text.Json.Serialization;
-using WinSplit;
+using EasyWindowSnapper;
 using System;
 
 using System.Windows.Forms;

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
-using WinSplit;
+using EasyWindowSnapper;
 using System.Drawing.Imaging;
 
 public partial class WindowSelector : Form
