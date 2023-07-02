@@ -6,12 +6,26 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationIcon>icons\icon.ico</ApplicationIcon>
     <!-- <RuntimeIdentifier>win-x64</RuntimeIdentifier> -->
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="icons/icon.ico" />
     <Reference Include="System.Windows.Forms" />
     <FolderToCopy Include="icons\**" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="icons\icon.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="icons\split_left.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="icons\split_right.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
   
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
