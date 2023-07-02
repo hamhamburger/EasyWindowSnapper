@@ -294,6 +294,7 @@ public void UpdateDataGridView()
         }
         catch (ArgumentException)
         {
+            System.Diagnostics.Debug.WriteLine("Failed to get icon for window: " + window.Title);
             resizedIcon = new Bitmap(transparentIconBitmap, standardIconSize);
         }
 

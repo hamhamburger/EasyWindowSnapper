@@ -1,6 +1,12 @@
+![Easy Window Snapper](assets/logoEasyWindowSnapper.jpg)
+
 # How to Use
 
 This application is a powerful mouse-based alternative to AltTab, enabling easy snapping of windows to the left or right.
+
+## Demo
+![Window Snap Demo](assets/demoSnap.gif)
+![AltTab Alternative Demo](assets/demoAltTab.gif)
 
 
 | Control | With Back Button | With Forward Button |
