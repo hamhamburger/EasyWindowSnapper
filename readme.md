@@ -1,4 +1,3 @@
-![Easy Window Snapper](assets/logoEasyWindowSnapper.jpg)
 
 # How to Use
 
