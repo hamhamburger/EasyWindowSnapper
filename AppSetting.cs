@@ -14,9 +14,8 @@ public class AppSettings
         SWAP_WINDOWS
     }
 
-    public const double DefaultZoomRatio = 0.015;
+    public const double DefaultZoomRatio = 0.025;
     public const double DefaultLeftScreenRatio = 0.6;
-    public const int DefaultMinWindowWidth = 661;
     public List<string> DefaultIgnoreWindowTitles = new List<string> { "Windows 入力エクスペリエンス", "設定", "メール", "Spotify Widget", "タスク マネージャー" };
 
     public const int DefaultMaxDisplayRows = 10;
@@ -34,7 +33,6 @@ public class AppSettings
 
     public double ExtendRatio { get; set; } = DefaultZoomRatio;
     public double LeftScreenRatio { get; set; } = DefaultLeftScreenRatio;
-    public int MinWindowWidth { get; set; } = DefaultMinWindowWidth;
     public List<string> IgnoreWindowTitles { get; set; } = new List<string> { "Windows 入力エクスペリエンス", "設定", "メール" };
 
     public int MaxDisplayRows { get; set; } = DefaultMaxDisplayRows;
