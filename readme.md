@@ -22,7 +22,11 @@ Mouse-oriented alternative to AltTab, allowing for effortless snapping of window
 
 
 ## Demo
+
+Snap window under cursor by click and adjust ratio with mouse wheel:
 ![Window Snap Demo](assets/demoSnap.gif)
+
+Snap window directly from window list and close window with middle-click:
 ![AltTab Alternative Demo](assets/demoAltTab.gif)
 
 ## Configuration
