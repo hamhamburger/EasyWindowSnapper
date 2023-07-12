@@ -1,15 +1,17 @@
+# EasyWindowSnapper
+
+Best Window Manager for Keyboard Bunglers and Mouse Junkies: 
+Mouse-oriented alternative to AltTab, allowing for effortless snapping of windows to the left or right
 
 # Download
 [https://github.com/hamhamburger/EasyWindowSnapper/releases](https://github.com/hamhamburger/EasyWindowSnapper/releases)
 
 
-# How to Use
-
-This application is a powerful mouse-based alternative to AltTab, enabling easy snapping of windows to the left or right.
-
 ## Demo
 ![Window Snap Demo](assets/demoSnap.gif)
 ![AltTab Alternative Demo](assets/demoAltTab.gif)
+
+# How to Use
 
 
 | Control | With Back Button | With Forward Button |
