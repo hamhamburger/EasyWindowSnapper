@@ -1,15 +1,13 @@
 # EasyWindowSnapper
 
-Best Window Manager for Keyboard Bunglers and Mouse Junkies: 
+Best Window Manager for Keyboard Bunglers and Mouse Junkies:　　
+
 Mouse-oriented alternative to AltTab, allowing for effortless snapping of windows to the left or right
 
 # Download
 [https://github.com/hamhamburger/EasyWindowSnapper/releases](https://github.com/hamhamburger/EasyWindowSnapper/releases)
 
 
-## Demo
-![Window Snap Demo](assets/demoSnap.gif)
-![AltTab Alternative Demo](assets/demoAltTab.gif)
 
 # How to Use
 
@@ -23,6 +21,10 @@ Mouse-oriented alternative to AltTab, allowing for effortless snapping of window
 | Middle-click (other options) | Maximize, minimize, or close window under cursor | Maximize, minimize, or close selected window |
 
 
+## Demo
+![Window Snap Demo](assets/demoSnap.gif)
+![AltTab Alternative Demo](assets/demoAltTab.gif)
+
 ## Configuration
 Right-click the blue monitor icon in the task tray for settings and to exit.
 
@@ -32,8 +34,6 @@ Apps like Explorer, video editors, and games may slow when resizing windows. A w
 # Known Issues
 
 - Rarely, the Forward/Back button may stick when repeatedly adjusting the window ratio. Pressing the stuck button fixes it.
-
-- Some windows may stay visible in the overview after closing, such as the default Windows mail app.
 
 - Clicks may become unresponsive, a bug from previous versions. Press Ctrl+Alt+Delete to resolve.
 
