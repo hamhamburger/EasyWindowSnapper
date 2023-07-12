@@ -3,15 +3,14 @@ using System.Runtime.InteropServices;
 using System.Text;
 using static MouseHook;
 using EasyWindowSnapper;
-using System.Threading.Tasks;
-using System.Drawing.Imaging;
 using static AppSettings;
+using System.Collections.Concurrent;
+
 
 public class SplitScreenApp
 {
     // 共通で使う定数の定義
     private static double LeftScreenRatio => AppSettings.Instance.LeftScreenRatio;
-    private static int MinWindowWidth => AppSettings.Instance.MinWindowWidth;
     private static double ExtendRatio => AppSettings.Instance.ExtendRatio;
     private static ButtonAction MiddleForwardButtonClickAction => AppSettings.Instance.MiddleForwardButtonClickAction;
     private static ButtonAction MiddleBackButtonClickAction => AppSettings.Instance.MiddleBackButtonClickAction;
@@ -27,6 +26,9 @@ public class SplitScreenApp
     private const int SWP_SHOWWINDOW = 0x0040;
     private const int SW_MINIMIZE = 6;
     private const int SW_MAXIMIZE = 3;
+
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
 
     // イベント
     const UInt32 WM_CLOSE = 0x0010;
@@ -45,17 +47,58 @@ public class SplitScreenApp
     private const int SNAP_WAIT_TIME = 100;
 
 
+    // リサイズのキュー
+    private const int MAX_PENDING_CALLS = 8;
+    private ConcurrentQueue<Task> tasks = new ConcurrentQueue<Task>();
+    private SemaphoreSlim semaphoreSlim = new SemaphoreSlim(1, 1);
+
+
     // モニターのサイズ
     private Dictionary<int, Rectangle> monitorWorkingAreas = new Dictionary<int, Rectangle>();
 
 
 
-    // 戻るボタンを押しているかどうか
+    // パフォーマンス改善用
+
     private bool isBackButtonPressed = false;
-    IntPtr resizingLeftWindow = IntPtr.Zero;
-    IntPtr resizingRightWindow = IntPtr.Zero;
-    int resizingMonitorWidth = 0;
-    int resizingExtendPixel = 0;
+
+
+    // ウィンドウの最小幅のキャッシュ
+    // 将来的に必要に応じてクリアするようにしたい
+    // 時間? または、ウィンドウの数?
+    private Dictionary<IntPtr, int> handleMinWidthCache = new Dictionary<IntPtr, int>();
+    private int GetMinWidthWithCache(IntPtr handle)
+    {
+        if (!handleMinWidthCache.ContainsKey(handle))
+        {
+            handleMinWidthCache[handle] = GetMinWidth(handle);
+        }
+
+        return handleMinWidthCache[handle];
+    }
+
+    public int GetMinWidth(IntPtr window)
+    {
+        // Get current window size
+        GetWindowRect(window, out RECT rect);
+        int originalWidth = rect.Right - rect.Left;
+        int originalHeight = rect.Bottom - rect.Top;
+
+        // Set width to minimum
+        SetWindowPos(window, IntPtr.Zero, rect.Left, rect.Top, 1, originalHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+
+        // Get new window size
+        GetWindowRect(window, out rect);
+        int minWidth = rect.Right - rect.Left;
+
+        // Restore original size
+        SetWindowPos(window, IntPtr.Zero, rect.Left, rect.Top, originalWidth, originalHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+
+        return minWidth;
+    }
+
+
+
 
     public class ResizingContext
     {
@@ -68,13 +111,7 @@ public class SplitScreenApp
     private ResizingContext context;
 
 
-    private void CompleteResize()
-    {
-        resizingLeftWindow = IntPtr.Zero;
-        resizingRightWindow = IntPtr.Zero;
-        resizingMonitorWidth = 0;
-        resizingExtendPixel = 0;
-    }
+
 
     // ウィンドウ情報を管理するための変数と構造体の定義
     private NotifyIcon _trayIcon;
@@ -111,7 +148,7 @@ public class SplitScreenApp
         public RECT rcNormalPosition;
     }
 
-    // デスクトップやウィンドウ操作に関する外部関数のインポート
+    // 外部関数のインポート
 
     [ComImport]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
@@ -215,6 +252,15 @@ public class SplitScreenApp
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
 
+    [DllImport("user32.dll")]
+    public static extern IntPtr BeginDeferWindowPos(int nNumWindows);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr DeferWindowPos(IntPtr hWinPosInfo, IntPtr hWnd, IntPtr hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    public static extern bool EndDeferWindowPos(IntPtr hWinPosInfo);
+
 
     public SplitScreenApp()
     {
@@ -257,8 +303,9 @@ public class SplitScreenApp
 
     public void Run()
     {
-        MouseHook.MouseAction += async (sender, e) => await OnMouseActionAsync(sender, e);
+        MouseHook.MouseAction += OnMouseAction;
         MouseHook.Start();
+
     }
     // // ウィンドウを移動する関数
     private void MoveWindowByRatio(IntPtr hWnd, double screenRatio, bool moveToLeft)
@@ -416,9 +463,6 @@ public class SplitScreenApp
     private void MoveWindowByWidth(IntPtr hWnd, int width, bool moveToLeft)
     {
         Rectangle workingArea = Screen.FromHandle(hWnd).WorkingArea;
-
-        width = Math.Max(width, MinWindowWidth);
-        width = Math.Min(width, workingArea.Width - MinWindowWidth);
         // ウィンドウが最大化または最小化されている場合、ウィンドウを復元する
         if (IsZoomed(hWnd) || IsIconic(hWnd))
         {
@@ -432,6 +476,8 @@ public class SplitScreenApp
         if (moveToLeft)
         {
             x = workingArea.X;
+            SetWindowPos(hWnd, (IntPtr)HWND_TOP, x, y, width, height, 0x0040);
+
         }
         else
         {
@@ -439,6 +485,16 @@ public class SplitScreenApp
         }
 
         SetWindowPos(hWnd, (IntPtr)HWND_TOP, x, y, width, height, 0x0040);
+        if (!moveToLeft)
+        {
+
+            GetWindowRect(hWnd, out RECT windowRect);
+            if (width < windowRect.Width)
+            {
+                // 角がずれている場合があるので、再度移動する
+                SetWindowPos(hWnd, (IntPtr)HWND_TOP, workingArea.Width - windowRect.Width + workingArea.X, y, width, height, 0x0040);
+            }
+        }
         MoveForeGroundWindow(hWnd);
     }
 
@@ -453,21 +509,33 @@ public class SplitScreenApp
         }
 
 
+
+
         // 両ウィンドウの現在のサイズを取得
         GetWindowRect(leftWindowRoot, out RECT leftWindowRect);
         GetWindowRect(rightWindowRoot, out RECT rightWindowRect);
 
-        // ウィンドウの元の比率を計算
-        double originalLeftWindowRatio = (double)leftWindowRect.Width / (leftWindowRect.Width + rightWindowRect.Width);
-        double originalRightWindowRatio = 1 - originalLeftWindowRatio;
+        int currentRightWindowWidth = rightWindowRect.Width;
+        int currentLeftWindowWidth = leftWindowRect.Width;
+        int newRightWindowWidth;
+        int newLeftWindowWidth;
+
+        Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
 
 
+        if (currentLeftWindowWidth <= currentRightWindowWidth)
+        {
+            newRightWindowWidth = Math.Max(currentLeftWindowWidth, GetMinWidth(rightWindowRoot));
+            newLeftWindowWidth = workingArea.Width  + workingArea.X - newRightWindowWidth;
+        }
+        else {
+            newLeftWindowWidth = Math.Max(currentRightWindowWidth, GetMinWidth(leftWindowRoot));
+            newRightWindowWidth = workingArea.Width + workingArea.X - newLeftWindowWidth;
+        }
 
-        // ウィンドウを交換して元の比率を維持            
 
-
-        MoveWindowByRatio(leftWindowRoot, originalRightWindowRatio, false);
-        MoveWindowByRatio(rightWindowRoot, originalLeftWindowRatio, true);
+        MoveWindowByWidth(leftWindowRoot, newLeftWindowWidth, false);
+        MoveWindowByWidth(rightWindowRoot, newRightWindowWidth, true);
     }
 
 
@@ -481,15 +549,21 @@ public class SplitScreenApp
 
         Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
 
-
-        int acceptableWidth = workingArea.Width - MinWindowWidth;
-
         int leftWindowX = workingArea.X + 30;
-        int rightWindowX = workingArea.X + workingArea.Width - 120;
-        int y = (workingArea.Y + workingArea.Height) / 2;
+        int rightWindowX = workingArea.X + workingArea.Width - 30;
+        int y1 = (workingArea.Y + workingArea.Height) / 5;
+        int y2 = y1 * 4;
 
-        IntPtr leftWindowHandle = WindowFromPoint(new Point(leftWindowX, y));
-        IntPtr rightWindowHandle = WindowFromPoint(new Point(rightWindowX, y));
+        IntPtr leftWindowHandle1 = WindowFromPoint(new Point(leftWindowX, y1));
+        IntPtr leftWindowHandle2 = WindowFromPoint(new Point(leftWindowX, y2));
+
+
+        IntPtr rightWindowHandle1 = WindowFromPoint(new Point(rightWindowX, y1));
+        IntPtr rightWindowHandle2 = WindowFromPoint(new Point(rightWindowX, y2));
+
+
+        IntPtr rightWindowHandle = rightWindowHandle1 == rightWindowHandle2 ? rightWindowHandle1 : IntPtr.Zero;
+        IntPtr leftWindowHandle = leftWindowHandle1 == leftWindowHandle2 ? leftWindowHandle1 : IntPtr.Zero;
         IntPtr rightWindowRoot = GetAncestor(rightWindowHandle, GA_ROOT);
         IntPtr leftWindowRoot = GetAncestor(leftWindowHandle, GA_ROOT);
 
@@ -507,15 +581,14 @@ public class SplitScreenApp
             RECT rcNormalPosition = placement.rcNormalPosition;
 
             int windowWidth = rcNormalPosition.Right - rcNormalPosition.Left;
-            if (IsSmall(windowWidth, rcNormalPosition.Bottom - rcNormalPosition.Top) || windowWidth > acceptableWidth)
+            if (IsSmall(windowWidth, rcNormalPosition.Bottom - rcNormalPosition.Top))
             {
-                leftWindowHandle = IntPtr.Zero;
+                leftWindowHandle1 = IntPtr.Zero;
             }
         }
 
         title.Clear();
         GetWindowText(rightWindowRoot, title, title.Capacity);
-
         if (title.Length == 0)
         {
             rightWindowRoot = IntPtr.Zero;
@@ -528,11 +601,14 @@ public class SplitScreenApp
             RECT rcNormalPosition = placement.rcNormalPosition;
 
             int windowWidth = rcNormalPosition.Right - rcNormalPosition.Left;
-            if (IsSmall(windowWidth, rcNormalPosition.Bottom - rcNormalPosition.Top) || windowWidth > acceptableWidth)
+            if (IsSmall(windowWidth, rcNormalPosition.Bottom - rcNormalPosition.Top))
             {
+
+
                 rightWindowRoot = IntPtr.Zero;
             }
         }
+
 
 
         return (leftWindowRoot, rightWindowRoot);
@@ -546,7 +622,7 @@ public class SplitScreenApp
         {
             if (monitorIndex < 0 || monitorIndex >= Screen.AllScreens.Length)
             {
-                throw new ArgumentOutOfRangeException(nameof(monitorIndex), "Invalid monitor index.");
+                return new List<WindowItem>();
             }
 
             List<WindowItem> windows = new List<WindowItem>();
@@ -576,6 +652,7 @@ public class SplitScreenApp
                 if (IgnoreWindowTitles.Contains(title.ToString()))
                 {
                     return true;
+
                 }
 
                 WINDOWPLACEMENT placement = new WINDOWPLACEMENT();
@@ -609,18 +686,9 @@ public class SplitScreenApp
     }
 
 
-    private void ResizeWindows(IntPtr leftWindowRoot, IntPtr rightWindowRoot, int newLeftWindowWidth, int newRightWindowWidth, int monitorIndex)
-    {
-        Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
-        newLeftWindowWidth = Math.Min(newLeftWindowWidth, workingArea.Width);
-        newRightWindowWidth = Math.Min(newRightWindowWidth, workingArea.Width);
 
-        SetWindowPos(leftWindowRoot, (IntPtr)HWND_TOP, workingArea.X, workingArea.Y, newLeftWindowWidth, workingArea.Height, 0x0040);
-        SetWindowPos(rightWindowRoot, (IntPtr)HWND_TOP, workingArea.X + newLeftWindowWidth, workingArea.Y, newRightWindowWidth, workingArea.Height, 0x0040);
-    }
-
-    // マウス操作時のイベント5
-    private async Task OnMouseActionAsync(object sender, ExtendedMouseEventArgs e)
+    // マウス操作時のイベントハンドラ
+    private void OnMouseAction(object sender, ExtendedMouseEventArgs e)
     {
         Point cursorPosition = GetCursorPosition(e);
         IntPtr hWnd = WindowFromPoint(cursorPosition);
@@ -646,9 +714,6 @@ public class SplitScreenApp
         if (e.ReleasedButton == MouseButtons.XButton1)
         {
             isBackButtonPressed = false;
-            CompleteResize();
-
-            // TODO
             _windows.Clear();
             _windowSelector.Hide();
         }
@@ -690,17 +755,21 @@ public class SplitScreenApp
         return monitorWorkingAreas[monitorIndex];
     }
 
-    private void HandleBackButtonDown(ExtendedMouseEventArgs e, IntPtr hwnd, int monitorIndex)
+    private async void HandleBackButtonDown(ExtendedMouseEventArgs e, IntPtr hwnd, int monitorIndex)
     {
         if (hwnd == IntPtr.Zero) return;
 
+
+        // クリック時の処理
         switch (e.PressedButton)
         {
             case MouseButtons.Left:
                 SnapWindow(hwnd, monitorIndex, true);
+                SetContext(monitorIndex);
                 break;
             case MouseButtons.Right:
                 SnapWindow(hwnd, monitorIndex, false);
+                SetContext(monitorIndex);
                 break;
             case MouseButtons.Middle:
                 switch (MiddleBackButtonClickAction)
@@ -708,6 +777,7 @@ public class SplitScreenApp
                     case
                         ButtonAction.SWAP_WINDOWS:
                         SwapWindows(monitorIndex);
+                        SetContext(monitorIndex);
                         break;
 
                     case ButtonAction.MINIMIZE_WINDOW:
@@ -733,26 +803,55 @@ public class SplitScreenApp
         }
 
 
+
+        // ホイール時の処理
         if (e.Delta != 0)
         {
             if (isBackButtonPressed == false)
             {
                 isBackButtonPressed = true;
-                var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
-                MoveForeGroundWindow(leftWindowRoot);
-                context = new ResizingContext
-                {
-                    LeftWindow = leftWindowRoot,
-                    RightWindow = rightWindowRoot,
-                    ExtendPixel = GetExtendPixel(monitorIndex),
-                    MonitorWidth = GetMonitorWorkingArea(monitorIndex).Width,
-                    MonitorIndex = monitorIndex
-                };
-                MoveForeGroundWindow(rightWindowRoot);
+
+                SetContext(monitorIndex);
+                MoveForeGroundWindow(context.LeftWindow);
+                MoveForeGroundWindow(context.RightWindow);
             }
 
-            ResizeWindowBasedOnDelta(e, context);
+
+            // 連続して呼び出された場合はスキップ
+
+            if (tasks.Count < MAX_PENDING_CALLS)
+            {
+                System.Diagnostics.Debug.WriteLine("left");
+                System.Diagnostics.Debug.WriteLine(context.LeftWindow);
+                System.Diagnostics.Debug.WriteLine("right");
+                System.Diagnostics.Debug.WriteLine(context.RightWindow);
+                var task = ResizeWindowBasedOnDelta(e, context);
+                tasks.Enqueue(task);
+
+                await task;
+
+                tasks.TryDequeue(out _);
+            }
+
+
+
         }
+    }
+
+
+
+    // 現在のモニターの情報をセットする関数
+    private void SetContext(int monitorIndex)
+    {
+        var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
+        context = new ResizingContext
+        {
+            LeftWindow = leftWindowRoot,
+            RightWindow = rightWindowRoot,
+            ExtendPixel = GetExtendPixel(monitorIndex),
+            MonitorWidth = GetMonitorWorkingArea(monitorIndex).Width,
+            MonitorIndex = monitorIndex
+        };
     }
 
     private async void HandleForwardButtonDown(ExtendedMouseEventArgs e, IntPtr hWndRoot, int monitorIndex)
@@ -809,14 +908,11 @@ public class SplitScreenApp
 
                 foreach (var window in _windows)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Window handle: {window.Handle}");
-                    System.Diagnostics.Debug.WriteLine($"Window type: {window.type}");
                     if (window.Handle == hwnd)
                     {
 
                         if (window.type == WindowItemType.RIGHT)
                         {
-                            System.Diagnostics.Debug.WriteLine($"left to right");
                             rightWindowHandle = window.Handle;
                         }
                         window.type = WindowItemType.LEFT;
@@ -851,13 +947,10 @@ public class SplitScreenApp
 
                 foreach (var window in _windows)
                 {
-                    System.Diagnostics.Debug.WriteLine($"Window handle: {window.Handle}");
-                    System.Diagnostics.Debug.WriteLine($"Window type: {window.type}");
                     if (window.Handle == hwnd)
                     {
                         if (window.type == WindowItemType.LEFT)
                         {
-                            System.Diagnostics.Debug.WriteLine($"right to left");
                             leftWindowHandle = window.Handle;
                         }
                         window.type = WindowItemType.RIGHT;
@@ -894,7 +987,7 @@ public class SplitScreenApp
 
                     case ButtonAction.CLOSE_WINDOW:
                         CloseWindow(hwnd);
-                        System.Threading.Thread.Sleep(120);
+                        System.Threading.Thread.Sleep(200);
                         if (!IsWindow(hwnd))
                         {
                             _windowSelector.deleteWindow(hwnd);
@@ -932,26 +1025,6 @@ public class SplitScreenApp
 
 
 
-    public static void SetWindowTransparency(IntPtr hwnd, byte transparency)
-    {
-        int extendedStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-        SetWindowLong(hwnd, GWL_EXSTYLE, extendedStyle | WS_EX_LAYERED);
-        SetLayeredWindowAttributes(hwnd, 0, transparency, LWA_ALPHA);
-    }
-
-    private void FlashWindow(IntPtr hWnd)
-    {
-        FLASHWINFO fi = new FLASHWINFO();
-        fi.cbSize = Convert.ToUInt32(Marshal.SizeOf(fi));
-        fi.hwnd = hWnd;
-        fi.dwFlags = 3; // Flash both the window caption and taskbar button
-        fi.uCount = uint.MaxValue; // Keep flashing until the window comes to the foreground
-        fi.dwTimeout = 0;
-
-        if (!FlashWindowEx(ref fi))
-        {
-        }
-    }
     public static string GetWindowTitle(IntPtr hWnd)
     {
         int length = GetWindowTextLength(hWnd);
@@ -974,57 +1047,210 @@ public class SplitScreenApp
         return extendPixels[monitorIndex];
     }
 
-    private void ResizeWindowBasedOnDelta(ExtendedMouseEventArgs e, ResizingContext context)
+    private async Task ResizeWindowBasedOnDelta(ExtendedMouseEventArgs e, ResizingContext context)
     {
-        System.Diagnostics.Debug.WriteLine("delta:" + e.Delta);
-        if (e.Delta > 0)
+        await semaphoreSlim.WaitAsync();
+        try
         {
-            // 右のウィンドウを拡大
-            if (context.LeftWindow == IntPtr.Zero)
+            Rectangle workingArea = GetMonitorWorkingArea(context.MonitorIndex);
+
+            // ホイールを上に回した場合
+            if (e.Delta > 0)
             {
-                return;
+
+                ShrinkLeftExpandRight(workingArea, context);
             }
-            int newRightWindowWidth = GetNewWindowWidth(context.RightWindow, context.ExtendPixel);
-            UpdateWindowWidthsAndResize(e, context, newRightWindowWidth);
+
+            // ホイールを下に回した場合
+            else
+            {
+                ShrinkRightExpandLeft(workingArea, context);
+            }
+            await Task.Delay(5);
         }
-        else
+        finally
         {
-            // 左のウィンドウを拡大
-            if (context.RightWindow == IntPtr.Zero)
-            {
-                return;
-            }
-            int newLeftWindowWidth = GetNewWindowWidth(context.LeftWindow, context.ExtendPixel);
-            UpdateWindowWidthsAndResize(e, context, newLeftWindowWidth);
+            semaphoreSlim.Release();
         }
     }
 
+    private void ShrinkLeftExpandRight(Rectangle workingArea, ResizingContext context)
+    {
+        if (context.RightWindow == IntPtr.Zero)
+        {
+            ShrinkLeftWindow(workingArea, context);
+        }
+        else if (context.LeftWindow == IntPtr.Zero)
+        {
+            ExpandRightWindow(workingArea, context);
+        }
+        // 最大化されている場合
+        else if (context.LeftWindow == context.RightWindow)
+        {
 
-    private int GetNewWindowWidth(IntPtr windowHandle, int extendPixel)
+
+            ShrinkLeftWindow(workingArea, context);
+            SetContext(context.MonitorIndex);
+        }
+
+        else
+        {
+            ShrinkLeftExpandRightBothWindows(workingArea, context);
+        }
+    }
+
+    private void ShrinkRightExpandLeft(Rectangle workingArea, ResizingContext context)
+    {
+
+        if (context.LeftWindow == IntPtr.Zero)
+        {
+            ShrinkRightWindow(workingArea, context);
+        }
+        else if (context.RightWindow == IntPtr.Zero)
+        {
+            System.Diagnostics.Debug.WriteLine("ExpandLeftWindow");
+            ExpandLeftWindow(workingArea, context);
+        }
+        else if (context.LeftWindow == context.RightWindow)
+        {
+
+            ShrinkRightWindow(workingArea, context);
+            SetContext(context.MonitorIndex);
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("ShrinkRightExpandLeft");
+            ShrinkRightExpandLeftBothWindows(workingArea, context);
+        }
+    }
+
+    private void ShrinkLeftWindow(Rectangle workingArea, ResizingContext context)
+    {
+        var shrinkedLeftWindowWidth = GetShrinkedWindowWidth(context.LeftWindow, context.ExtendPixel);
+        shrinkedLeftWindowWidth = Math.Max(shrinkedLeftWindowWidth, GetMinWidthWithCache(context.LeftWindow));
+        if (IsZoomed(context.LeftWindow))
+        {
+            ShowWindow(context.LeftWindow, SW_RESTORE);
+        }
+        SetWindowPos(context.LeftWindow, (IntPtr)HWND_TOP, workingArea.X, workingArea.Y, shrinkedLeftWindowWidth, workingArea.Height, 0x0040);
+
+
+    }
+
+    private void ExpandRightWindow(Rectangle workingArea, ResizingContext context)
+    {
+        var extendedRightWindowWidth = GetExtendedWindowWidth(context.RightWindow, context.ExtendPixel);
+        extendedRightWindowWidth = Math.Min(extendedRightWindowWidth, workingArea.Width);
+        SetWindowPos(context.RightWindow, (IntPtr)HWND_TOP, workingArea.Width + workingArea.X - extendedRightWindowWidth, workingArea.Y, extendedRightWindowWidth, workingArea.Height, 0x0040);
+    }
+
+    private bool ShrinkLeftExpandRightBothWindows(Rectangle workingArea, ResizingContext context)
+    {
+        int newLeftWindowWidth = Math.Max(GetShrinkedWindowWidth(context.LeftWindow, context.ExtendPixel), GetMinWidthWithCache(context.LeftWindow));
+
+        int newRightWindowWidth = workingArea.Width - newLeftWindowWidth;
+
+
+        IntPtr deferHandle = BeginDeferWindowPos(2);
+
+        deferHandle = DeferWindowPos(deferHandle, context.LeftWindow, (IntPtr)HWND_TOP, workingArea.X, workingArea.Y, newLeftWindowWidth, workingArea.Height, 0x0040);
+        if (deferHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        deferHandle = DeferWindowPos(deferHandle, context.RightWindow, (IntPtr)HWND_TOP, workingArea.X + newLeftWindowWidth, workingArea.Y, newRightWindowWidth, workingArea.Height, 0x0040);
+        if (deferHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (!EndDeferWindowPos(deferHandle))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+
+    private void ShrinkRightWindow(Rectangle workingArea, ResizingContext context)
+    {
+
+        var shrinkedRightWindowWidth = GetShrinkedWindowWidth(context.RightWindow, context.ExtendPixel);
+        shrinkedRightWindowWidth = Math.Max(shrinkedRightWindowWidth, GetMinWidthWithCache(context.RightWindow));
+        if (IsZoomed(context.RightWindow))
+        {
+            ShowWindow(context.RightWindow, SW_RESTORE);
+        }
+
+        SetWindowPos(context.RightWindow, (IntPtr)HWND_TOP, workingArea.X + workingArea.Width - shrinkedRightWindowWidth, workingArea.Y, shrinkedRightWindowWidth, workingArea.Height, 0x0040);
+    }
+
+    private void ExpandLeftWindow(Rectangle workingArea, ResizingContext context)
+    {
+        var extendedLeftWindowWidth = GetExtendedWindowWidth(context.LeftWindow, context.ExtendPixel);
+        extendedLeftWindowWidth = Math.Min(extendedLeftWindowWidth, workingArea.Width);
+        SetWindowPos(context.LeftWindow, (IntPtr)HWND_TOP, workingArea.X, workingArea.Y, extendedLeftWindowWidth, workingArea.Height, 0x0040);
+    }
+
+    private bool ShrinkRightExpandLeftBothWindows(Rectangle workingArea, ResizingContext context)
+    {
+        int newRightWindowWidth = Math.Max(GetShrinkedWindowWidth(context.RightWindow, context.ExtendPixel), GetMinWidthWithCache(context.RightWindow));
+
+        int newLeftWindowWidth = workingArea.Width - newRightWindowWidth;
+
+        IntPtr deferHandle = BeginDeferWindowPos(2);
+
+        deferHandle = DeferWindowPos(deferHandle, context.RightWindow, (IntPtr)HWND_TOP, workingArea.X + workingArea.Width - newRightWindowWidth, workingArea.Y, newRightWindowWidth, workingArea.Height, 0x0040);
+        if (deferHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        deferHandle = DeferWindowPos(deferHandle, context.LeftWindow, (IntPtr)HWND_TOP, workingArea.X, workingArea.Y, newLeftWindowWidth, workingArea.Height, 0x0040);
+        if (deferHandle == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        if (!EndDeferWindowPos(deferHandle))
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+
+    // ウィンドウを最小幅以下にしようとした場合ずれてしまうので、ずれないように調整する
+    // →ウィンドウごとに最小幅を保存することで不要になった
+
+    // private int AdjustWindowWidthIfNecessary(IntPtr window, Rectangle workingArea, int expectedWidth, bool isLeft)
+    // {
+
+    //     GetWindowRect(window, out RECT rect);
+    //     if (rect.Width > expectedWidth)
+    //     {
+    //         int newXPosition = isLeft ? workingArea.X : workingArea.X + workingArea.Width - rect.Width;
+    //         SetWindowPos(window, (IntPtr)HWND_TOP, newXPosition, workingArea.Y, rect.Width, workingArea.Height, 0x0040);
+    //         return rect.Width;
+    //     }
+    //     return expectedWidth;
+    // }
+
+
+    private int GetShrinkedWindowWidth(IntPtr windowHandle, int extendPixel)
+    {
+        GetWindowRect(windowHandle, out RECT windowRect);
+        return (int)(windowRect.Width - extendPixel);
+    }
+
+    private int GetExtendedWindowWidth(IntPtr windowHandle, int extendPixel)
     {
         GetWindowRect(windowHandle, out RECT windowRect);
         return (int)(windowRect.Width + extendPixel);
     }
-
-
-    private void UpdateWindowWidthsAndResize(ExtendedMouseEventArgs e, ResizingContext context, int newWindowWidth)
-    {
-        int newOtherWindowWidth = context.MonitorWidth - newWindowWidth;
-        if (newOtherWindowWidth < MinWindowWidth)
-        {
-            return;
-        }
-
-        if (e.Delta > 0)
-        {
-            ResizeWindows(context.LeftWindow, context.RightWindow, newOtherWindowWidth, newWindowWidth, context.MonitorIndex);
-        }
-        else
-        {
-            ResizeWindows(context.LeftWindow, context.RightWindow, newWindowWidth, newOtherWindowWidth, context.MonitorIndex);
-        }
-    }
-
 
 
     private static IntPtr GetLastVisibleActivePopUpOfWindow(IntPtr window)
