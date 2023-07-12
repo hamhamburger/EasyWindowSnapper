@@ -4,7 +4,9 @@ using System.Drawing;
 using System.Windows.Forms;
 using System.Runtime.InteropServices;
 using EasyWindowSnapper;
+using System.Diagnostics;
 using System.Drawing.Imaging;
+using System.ComponentModel;
 
 public partial class WindowSelector : Form
 {
@@ -42,13 +44,22 @@ public partial class WindowSelector : Form
     [DllImport("user32.dll")]
     static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+
     private DataGridView dgvWindows;
 
 
     private Bitmap splitLeftIconBitmap;
     private Bitmap splitRightIconBitmap;
     private Bitmap transparentIconBitmap;
+
+    private Icon transparentIcon;
+
     private Dictionary<IntPtr, IntPtr> iconCache = new Dictionary<IntPtr, IntPtr>();
+    private Dictionary<IntPtr, uint> handleProcessIdCache = new Dictionary<IntPtr, uint>();
+    private Dictionary<uint, Icon> processIdIconCache = new Dictionary<uint, Icon>();
 
     public const int WM_GETICON = 0x007f;
     public const int ICON_SMALL2 = 2;
@@ -63,7 +74,7 @@ public partial class WindowSelector : Form
 
     private static int Padding = 10;
 
-       private static int TotalRowHeight => RowHeight + Padding * 2;
+    private static int TotalRowHeight => RowHeight + Padding * 2;
     private static int MaxDisplayRows => AppSettings.Instance.MaxDisplayRows;
 
     private static bool IsDarkMode => AppSettings.Instance.IsDarkMode;
@@ -133,14 +144,13 @@ public partial class WindowSelector : Form
 
     private List<WindowItem>? _windows;
     private int _targetIndex;
-       public WindowSelector(List<WindowItem>? windows) : base()
+    public WindowSelector(List<WindowItem>? windows) : base()
     {
         // ウィンドウのリストを設定する。リストがnullの場合は新たに作成する。
         _windows = windows ?? new List<WindowItem>();
         _targetIndex = 0;
 
         // デバッグモードでダークモードのステータスを表示する
-        System.Diagnostics.Debug.WriteLine(IsDarkMode);
 
         // フォームの基本設定を行う
         ConfigureForm();
@@ -172,9 +182,9 @@ public partial class WindowSelector : Form
         this.ShowInTaskbar = false;
     }
 
-   private void ConfigureDataGridView()
+    private void ConfigureDataGridView()
     {
-            dgvWindows = new DataGridView
+        dgvWindows = new DataGridView
         {
             ColumnHeadersVisible = false,
             AutoSizeRowsMode = DataGridViewAutoSizeRowsMode.None,  // Set to None.
@@ -185,7 +195,7 @@ public partial class WindowSelector : Form
             Dock = DockStyle.Fill,
             AllowUserToAddRows = false,
             Font = new Font("Microsoft Sans Serif", 18.0f, FontStyle.Regular, GraphicsUnit.Pixel),
-            ScrollBars = ScrollBars.None,
+            ScrollBars = ScrollBars.Vertical,
             BackgroundColor = IsDarkMode ? Color.Black : Color.White,
             ForeColor = IsDarkMode ? Color.White : Color.Black,
             CellBorderStyle = DataGridViewCellBorderStyle.None,
@@ -206,8 +216,8 @@ public partial class WindowSelector : Form
         dgvWindows.RowTemplate.DefaultCellStyle.Padding = new Padding(0, Padding, 0, Padding);
 
         int dgvPaddingAndMargin = dgvWindows.Margin.Top + dgvWindows.Margin.Bottom + dgvWindows.Padding.Top + dgvWindows.Padding.Bottom;
-         dgvWindows.Size = new Size(800, TotalRowHeight * MaxDisplayRows);
-        this.Size = new Size(800, TotalRowHeight * MaxDisplayRows  );
+        dgvWindows.Size = new Size(800, TotalRowHeight * MaxDisplayRows);
+        this.Size = new Size(800, TotalRowHeight * MaxDisplayRows);
         dgvWindows.Rows.Clear();
     }
 
@@ -235,6 +245,38 @@ public partial class WindowSelector : Form
         dgvWindows.Columns.Add(titleColumn);
     }
 
+
+    public Icon ExtractIconFromWindowHandle(IntPtr windowHandle)
+    {
+        uint processId = 0;
+        if (!handleProcessIdCache.TryGetValue(windowHandle, out processId))
+        {
+            GetWindowThreadProcessId(windowHandle, out processId); // This is a Windows API function
+            handleProcessIdCache[windowHandle] = processId;
+        }
+        if (processId == 0)
+        {
+            throw new ArgumentException("Could not find process associated with window handle");
+        }
+        Icon icon = null;
+        if (!processIdIconCache.TryGetValue(processId, out icon))
+        {
+            try
+            {
+                Process process = Process.GetProcessById((int)processId);
+                string executablePath = process.MainModule.FileName;
+                icon = Icon.ExtractAssociatedIcon(executablePath);
+                processIdIconCache[processId] = icon;
+            }
+            catch (Win32Exception e) when (e.NativeErrorCode == 5) // Access Denied error
+            {
+                icon = transparentIcon; // Use pre-generated transparent icon
+                processIdIconCache[processId] = icon;
+            }
+        }
+        return icon;
+    }
+
     private void SetupIcons()
     {
         // アイコンパスを設定し、アイコンを読み込む
@@ -246,6 +288,10 @@ public partial class WindowSelector : Form
 
         splitLeftIconBitmap = ResizeIconBitmap(splitLeftIcon, RowHeight, RowHeight);
         splitRightIconBitmap = ResizeIconBitmap(splitRightIcon, RowHeight, RowHeight);
+
+        Bitmap bitmap = new Bitmap(1, 1);
+        bitmap.SetPixel(0, 0, Color.Transparent);
+        transparentIcon = Icon.FromHandle(bitmap.GetHicon());
 
         transparentIconBitmap = new Bitmap(1, 1);
         transparentIconBitmap.MakeTransparent();
@@ -275,99 +321,79 @@ public partial class WindowSelector : Form
         }
         UpdateDataGridView();
     }
-public void UpdateDataGridView()
-{
-    Size standardIconSize = new Size(RowHeight, RowHeight);
-
-    dgvWindows.Rows.Clear();
-    foreach (var window in new List<WindowItem>(_windows))
+    public void UpdateDataGridView()
     {
-        Bitmap resizedIcon;
-        try
+        Size standardIconSize = new Size(RowHeight, RowHeight);
+        dgvWindows.Rows.Clear();
+        foreach (var window in new List<WindowItem>(_windows))
         {
-            IntPtr hIcon = GetWindowIconCached(window.Handle);
-            Icon appIcon = Icon.FromHandle(hIcon);
+            Bitmap resizedIcon;
+            Icon appIcon = ExtractIconFromWindowHandle(window.Handle);
+            System.Diagnostics.Debug.WriteLine(appIcon);
             Bitmap bitmap = appIcon.ToBitmap();
-
             // Resize the icon to the standard icon size
             resizedIcon = new Bitmap(bitmap, standardIconSize);
+            Bitmap typeIcon = transparentIconBitmap;
+            if (window.type == WindowItemType.LEFT)
+            {
+                typeIcon = splitLeftIconBitmap;
+            }
+            else if (window.type == WindowItemType.RIGHT)
+            {
+                typeIcon = splitRightIconBitmap;
+            }
+            // Scale typeIcon to fit resizedIcon
+            typeIcon = new Bitmap(typeIcon, standardIconSize);
+            float transparency = 0.8f;
+            Bitmap transparentTypeIcon = new Bitmap(typeIcon.Width, typeIcon.Height);
+            using (Graphics g = Graphics.FromImage(transparentTypeIcon))
+            {
+                ColorMatrix colorMatrix = new ColorMatrix();
+                colorMatrix.Matrix33 = transparency;
+                ImageAttributes attributes = new ImageAttributes();
+                attributes.SetColorMatrix(colorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
+                g.DrawImage(typeIcon, new Rectangle(0, 0, typeIcon.Width, typeIcon.Height),
+                    0, 0, typeIcon.Width, typeIcon.Height, GraphicsUnit.Pixel, attributes);
+            }
+            using (Graphics g = Graphics.FromImage(resizedIcon))
+            {
+                g.DrawImage(transparentTypeIcon, new Point(0, 0));
+            }
+            var appImage = new DataGridViewImageCell() { Value = resizedIcon };
+            var textCell = new DataGridViewTextBoxCell() { Value = window.Title };
+            dgvWindows.Rows.Add(new object[] { appImage.Value, textCell.Value });
         }
-        catch (ArgumentException)
-        {
-            System.Diagnostics.Debug.WriteLine("Failed to get icon for window: " + window.Title);
-            resizedIcon = new Bitmap(transparentIconBitmap, standardIconSize);
-        }
-
-        Bitmap typeIcon = transparentIconBitmap;
-
-        if (window.type == WindowItemType.LEFT)
-        {
-            typeIcon = splitLeftIconBitmap;
-        }
-        else if (window.type == WindowItemType.RIGHT)
-        {
-            typeIcon = splitRightIconBitmap;
-        }
-
-        // Scale typeIcon to fit resizedIcon
-        typeIcon = new Bitmap(typeIcon, standardIconSize);
-
-        float transparency = 0.8f;
-        Bitmap transparentTypeIcon = new Bitmap(typeIcon.Width, typeIcon.Height);
-        using (Graphics g = Graphics.FromImage(transparentTypeIcon))
-        {
-            ColorMatrix colorMatrix = new ColorMatrix();
-            colorMatrix.Matrix33 = transparency;
-            ImageAttributes attributes = new ImageAttributes();
-            attributes.SetColorMatrix(colorMatrix, ColorMatrixFlag.Default, ColorAdjustType.Bitmap);
-
-            g.DrawImage(typeIcon, new Rectangle(0, 0, typeIcon.Width, typeIcon.Height),
-                0, 0, typeIcon.Width, typeIcon.Height, GraphicsUnit.Pixel, attributes);
-        }
-
-        using (Graphics g = Graphics.FromImage(resizedIcon))
-        {
-            g.DrawImage(transparentTypeIcon, new Point(0, 0));
-        }
-
-        var appImage = new DataGridViewImageCell() { Value = resizedIcon };
-        var textCell = new DataGridViewTextBoxCell() { Value = window.Title };
-
-        dgvWindows.Rows.Add(new object[] { appImage.Value, textCell.Value });
+        dgvWindows.ClearSelection();
+        UpdateHighlight();
     }
-    dgvWindows.ClearSelection();
-    UpdateHighlight();
-}
-  private void UpdateHighlight()
-{
-
-    if (_windows == null || _windows.Count == 0)
+    private void UpdateHighlight()
     {
-        return;
-    }
 
-    if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
-    {
-        System.Diagnostics.Debug.WriteLine("OK");
-        dgvWindows.ClearSelection(); 
-        dgvWindows.Rows[_targetIndex].Selected = true;
-
-        dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[0];
-    }
-    else
-    {
-        System.Diagnostics.Debug.WriteLine("UpdateHighlight _targetIndex:" + _targetIndex + " is out of range");
-        _targetIndex = 0;
-
-        if (dgvWindows.Rows.Count > 0)
+        if (_windows == null || _windows.Count == 0)
         {
-            dgvWindows.ClearSelection(); 
+            return;
+        }
+
+        if (_targetIndex >= 0 && _targetIndex < dgvWindows.Rows.Count)
+        {
+            dgvWindows.ClearSelection();
             dgvWindows.Rows[_targetIndex].Selected = true;
 
             dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[0];
         }
+        else
+        {
+            _targetIndex = 0;
+
+            if (dgvWindows.Rows.Count > 0)
+            {
+                dgvWindows.ClearSelection();
+                dgvWindows.Rows[_targetIndex].Selected = true;
+
+                dgvWindows.CurrentCell = dgvWindows.Rows[_targetIndex].Cells[0];
+            }
+        }
     }
-}
 
     public void ResetIndex()
     {
@@ -405,7 +431,6 @@ public void UpdateDataGridView()
 
         _targetIndex = (_targetIndex + 1) % _windows.Count;
         UpdateHighlight();
-        System.Diagnostics.Debug.WriteLine("SelectNextWindow _targetIndex:" + _targetIndex);
         return _windows[_targetIndex];
     }
 
