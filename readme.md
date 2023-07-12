@@ -1,3 +1,4 @@
+
 # Download
 [https://github.com/hamhamburger/EasyWindowSnapper/releases](https://github.com/hamhamburger/EasyWindowSnapper/releases)
 

@@ -10,7 +10,7 @@ static class Program
 
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-
+        Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         var trayApp = new SplitScreenApp();
         trayApp.Run();
 

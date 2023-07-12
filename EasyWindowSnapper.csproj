@@ -11,7 +11,6 @@
   </PropertyGroup>
   <ItemGroup>
     <Resource Include="icons/icon.ico" />
-    <Reference Include="System.Windows.Forms" />
     <FolderToCopy Include="icons\**" />
   </ItemGroup>
   <ItemGroup>
