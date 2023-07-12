@@ -20,7 +20,7 @@ public class SettingsForm : Form
 
     private NumericUpDown _zoomRatioNumericUpDown;
     private NumericUpDown _leftScreenRatioNumericUpDown;
-    private NumericUpDown _minWindowWidthNumericUpDown;
+
     private TextBox _ignoreWindowTitlesTextBox;
 
     private NumericUpDown _maxDisplayRowsNumericUpDown;
@@ -90,7 +90,7 @@ public class SettingsForm : Form
 
         var zoomRatioLabel = new Label
         {
-            Text = "戻る+ホイールでウィンドウの幅を何割ずつ調整するか :",
+            Text = "戻る+ホイールでウィンドウの幅を何割ずつ拡大/縮小するか :",
             Location = new Point(20, 140),
             AutoSize = true,
         };
@@ -108,7 +108,7 @@ public class SettingsForm : Form
 
         var leftScreenRatioLabel = new Label
         {
-            Text = "スナップしたの左のウィンドウがモニタの何割使うか（デフォルト）:",
+            Text = "左のウィンドウをスナップしたときモニタの何割を使うか:",
             Location = new Point(20, 200),
             AutoSize = true,
         };
@@ -123,44 +123,16 @@ public class SettingsForm : Form
             Value = (decimal)DefaultLeftScreenRatio
         };
 
-        var minWindowWidthLabel = new Label
-        {
-            Text = "最小ウィンドウ幅:",
-            Location = new Point(20, 260),
-            AutoSize = true,
-        };
-        _minWindowWidthNumericUpDown = new NumericUpDown
-        {
-            Location = new Point(20, 280),
-            Width = 200,
-            Minimum = 100,
-            Maximum = 10000,
-            DecimalPlaces = 0,
-            Value = DefaultMinWindowWidth
-        };
-
-        var ignoreWindowTitlesLabel = new Label
-        {
-            Text = "無視するウィンドウのタイトル (カンマ区切りで記載して下さい):",
-            Location = new Point(20, 320),
-            AutoSize = true
-        };
-        _ignoreWindowTitlesTextBox = new TextBox
-        {
-            Location = new Point(20, 340),
-            Width = 350,
-            Text = string.Join(",", DefaultIgnoreWindowTitles)
-        };
 
         var maxDisplayRowsLabel = new Label
         {
             Text = "ウィンドウ一覧画面で表示する数(反映には再起動が必要です):",
-            Location = new Point(20, 380),
+            Location = new Point(20, 260),  // Changed from 380 to 260
             AutoSize = true,
         };
         _maxDisplayRowsNumericUpDown = new NumericUpDown
         {
-            Location = new Point(20, 400),
+            Location = new Point(20, 280),  // Changed from 400 to 280
             Width = 200,
             Minimum = 1,
             Maximum = 100,
@@ -170,13 +142,13 @@ public class SettingsForm : Form
 
         var rowHeightLabel = new Label
         {
-            Text = "行の高さ:",
-            Location = new Point(20, 440),
+            Text = "1行の高さ:",
+            Location = new Point(20, 320),
             AutoSize = true,
         };
         _rowHeightNumericUpDown = new NumericUpDown
         {
-            Location = new Point(20, 460),
+            Location = new Point(20, 340),
             Width = 200,
             Minimum = 10,
             Maximum = 200,
@@ -184,18 +156,33 @@ public class SettingsForm : Form
             Value = DefaultRowHeight
         };
 
+        var ignoreWindowTitlesLabel = new Label
+        {
+            Text = "ウィンドウ一覧画面に表示しないウィンドウのタイトル (カンマ区切りで記載して下さい):",
+            Location = new Point(20, 380),
+            AutoSize = true
+        };
+        _ignoreWindowTitlesTextBox = new TextBox
+        {
+            Location = new Point(20, 400),
+            Width = 450,
+            
+            Text = string.Join(",", DefaultIgnoreWindowTitles)
+        };
+
+
         _saveButton = new Button
         {
             Text = "Save",
             Size = new Size(buttonWidth, buttonHeight),
-            Location = new Point(600 - buttonMargin - buttonWidth, 550 - buttonMargin - buttonHeight) // Adjusted x and y coordinate to move to bottom right
+            Location = new Point(600 - buttonMargin - buttonWidth, 550 - buttonMargin - buttonHeight)
         };
 
         _resetButton = new Button
         {
             Text = "Reset",
             Size = new Size(buttonWidth, buttonHeight),
-            Location = new Point(600 - buttonMargin - 2 * buttonWidth, 550 - buttonMargin - buttonHeight) // Adjusted x and y coordinate to move to bottom right, and give space for Save button
+            Location = new Point(600 - buttonMargin - 2 * buttonWidth, 550 - buttonMargin - buttonHeight)
         };
 
 
@@ -204,9 +191,9 @@ public class SettingsForm : Form
             middleForwardClickActionLabel.Text = "Action for middle button click while back button pressed:";
             zoomRatioLabel.Text = "Zoom ratio for window width adjustment with back+wheel:";
             leftScreenRatioLabel.Text = "Ratio of left window in window snapping:";
-            minWindowWidthLabel.Text = "Minimum window width:";
             ignoreWindowTitlesLabel.Text = "List of window titles to ignore (comma separated):";
-
+            maxDisplayRowsLabel.Text = "Number of rows displayed in the window list (requires restart):";  // Added this line
+            rowHeightLabel.Text = "Row height:";  // Added this line
 
             _middleForwardButtonClickActionComboBox.Items.Clear();
             _middleForwardButtonClickActionComboBox.Items.Add(new ComboBoxItem { Value = ButtonAction.MINIMIZE_WINDOW, Text = "Minimize selected window" });
@@ -218,8 +205,6 @@ public class SettingsForm : Form
             _middleBackButtonClickActionComboBox.Items.Add(new ComboBoxItem { Value = ButtonAction.MINIMIZE_WINDOW, Text = "Minimize selected window" });
             _middleBackButtonClickActionComboBox.Items.Add(new ComboBoxItem { Value = ButtonAction.MAXIMIZE_WINDOW, Text = "Maximize selected window" });
             _middleBackButtonClickActionComboBox.Items.Add(new ComboBoxItem { Value = ButtonAction.CLOSE_WINDOW, Text = "Close selected window" });
-
-
         }
 
 
@@ -237,8 +222,6 @@ public class SettingsForm : Form
         Controls.Add(_zoomRatioNumericUpDown);
         Controls.Add(leftScreenRatioLabel);
         Controls.Add(_leftScreenRatioNumericUpDown);
-        Controls.Add(minWindowWidthLabel);
-        Controls.Add(_minWindowWidthNumericUpDown);
         Controls.Add(ignoreWindowTitlesLabel);
         Controls.Add(_ignoreWindowTitlesTextBox);
         Controls.Add(maxDisplayRowsLabel);
@@ -278,7 +261,6 @@ public class SettingsForm : Form
 
         _zoomRatioNumericUpDown.Value = (decimal)settings.ExtendRatio;
         _leftScreenRatioNumericUpDown.Value = (decimal)settings.LeftScreenRatio;
-        _minWindowWidthNumericUpDown.Value = settings.MinWindowWidth;
         _ignoreWindowTitlesTextBox.Text = string.Join(",", settings.IgnoreWindowTitles);
         _maxDisplayRowsNumericUpDown.Value = settings.MaxDisplayRows;
         _rowHeightNumericUpDown.Value = settings.RowHeight;
@@ -289,7 +271,6 @@ public class SettingsForm : Form
         _middleForwardButtonClickActionComboBox.SelectedIndex = 0;
         _zoomRatioNumericUpDown.Value = (decimal)DefaultZoomRatio;
         _leftScreenRatioNumericUpDown.Value = (decimal)DefaultLeftScreenRatio;
-        _minWindowWidthNumericUpDown.Value = DefaultMinWindowWidth;
         _ignoreWindowTitlesTextBox.Text = string.Join(",", DefaultIgnoreWindowTitles);
         _maxDisplayRowsNumericUpDown.Value = DefaultMaxDisplayRows;
         _rowHeightNumericUpDown.Value = DefaultRowHeight;
@@ -307,7 +288,6 @@ public class SettingsForm : Form
 
             AppSettings.Instance.ExtendRatio = (double)_zoomRatioNumericUpDown.Value;
             AppSettings.Instance.LeftScreenRatio = (double)_leftScreenRatioNumericUpDown.Value;
-            AppSettings.Instance.MinWindowWidth = (int)_minWindowWidthNumericUpDown.Value;
             AppSettings.Instance.IgnoreWindowTitles = _ignoreWindowTitlesTextBox.Text.Split(',').ToList();
             AppSettings.Instance.MaxDisplayRows = (int)_maxDisplayRowsNumericUpDown.Value;
             AppSettings.Instance.RowHeight = (int)_rowHeightNumericUpDown.Value;
