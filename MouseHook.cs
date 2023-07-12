@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Forms;
 
 
@@ -11,29 +12,29 @@ public static class MouseHook
     // マウス操作イベントの定義
     public static event EventHandler<ExtendedMouseEventArgs> MouseAction = delegate { };
     public class ExtendedMouseEventArgs : EventArgs
-{
-    // プロパティの定義
-    public MouseButtons? PressedButton { get; private set; }
-    public MouseButtons? ReleasedButton { get; private set; } // 追加
-
-    public int Delta { get; private set; }
-    public int X { get; private set; }
-    public int Y { get; private set; }
-    public bool BackButtonDown { get; private set; }
-    public bool ForwardButtonDown { get; private set; }
-
-    // コンストラクタ
-    public ExtendedMouseEventArgs(MouseButtons? pressedButton, MouseButtons? releasedButton, int delta, int x, int y, bool backButtonDown, bool forwardButtonDown)
     {
-        PressedButton = pressedButton;
-        ReleasedButton = releasedButton; // 追加
-        Delta = delta;
-        X = x;
-        Y = y;
-        BackButtonDown = backButtonDown;
-        ForwardButtonDown = forwardButtonDown;
+        // プロパティの定義
+        public MouseButtons? PressedButton { get; private set; }
+        public MouseButtons? ReleasedButton { get; private set; }
+
+        public int Delta { get; private set; }
+        public int X { get; private set; }
+        public int Y { get; private set; }
+        public bool BackButtonDown { get; private set; }
+        public bool ForwardButtonDown { get; private set; }
+
+        // コンストラクタ
+        public ExtendedMouseEventArgs(MouseButtons? pressedButton, MouseButtons? releasedButton, int delta, int x, int y, bool backButtonDown, bool forwardButtonDown)
+        {
+            PressedButton = pressedButton;
+            ReleasedButton = releasedButton; // 追加
+            Delta = delta;
+            X = x;
+            Y = y;
+            BackButtonDown = backButtonDown;
+            ForwardButtonDown = forwardButtonDown;
+        }
     }
-}
 
     // 定数の定義
     private const int WH_MOUSE_LL = 14;
@@ -50,7 +51,6 @@ public static class MouseHook
         private set { backButtonDown = value; }
     }
 
-    // Forwardボタンのプロパティ
     private static bool forwardButtonDown = false;
     public static bool ForwardButtonDown
     {
@@ -103,8 +103,9 @@ public static class MouseHook
 
                 if (Array.IndexOf(XBUTTON1, hookStruct.mouseData) >= 0)
                 {
-                    if (ForwardButtonDown){
-                         return (IntPtr)1;
+                    if (ForwardButtonDown)
+                    {
+                        return (IntPtr)1;
                     }
                     BackButtonDown = true;
 
@@ -115,8 +116,9 @@ public static class MouseHook
 
 
 
-                    if (BackButtonDown){
-                         return (IntPtr)1;
+                    if (BackButtonDown)
+                    {
+                        return (IntPtr)1;
                     }
                     ForwardButtonDown = true;
 
@@ -170,8 +172,11 @@ public static class MouseHook
                         }
                         if (otherButtonPressedWhileSideButtonPressed)
                         {
-                            
+
                             otherButtonPressedWhileSideButtonPressed = false;
+
+
+                            // サイドボタン押しながら他のボタンを押した場合はサイドボタンのデフォルトアクションを発生させない
                             MouseAction?.Invoke(null, new ExtendedMouseEventArgs(null, releasedButton, delta, hookStruct.pt.x, hookStruct.pt.y, backButtonDown, forwardButtonDown));
                             return (IntPtr)1;
                         }
@@ -179,10 +184,11 @@ public static class MouseHook
                         break;
                 }
 
-                // マウスアクションイベントを発火
+
                 if (pressedButton.HasValue || delta != 0)
                 {
-                    MouseAction?.Invoke(null, new ExtendedMouseEventArgs(pressedButton,null, delta, hookStruct.pt.x, hookStruct.pt.y, backButtonDown, forwardButtonDown));
+                    // サイドボタン+他のボタンの組み合わせでのアクションを発生させる
+                    MouseAction?.Invoke(null, new ExtendedMouseEventArgs(pressedButton, null, delta, hookStruct.pt.x, hookStruct.pt.y, backButtonDown, forwardButtonDown));
 
                 }
 
@@ -206,9 +212,9 @@ public static class MouseHook
         {
             if (Array.IndexOf(XBUTTON1, hookStruct.mouseData) >= 0)
             {
+                BackButtonDown = false;
                 if (!otherButtonPressedWhileSideButtonPressed)
                 {
-
                     KeyboardInput.PressBrowserBack();
                     KeyboardInput.ReleaseBrowserBack();
 
@@ -217,15 +223,15 @@ public static class MouseHook
                 }
 
             }
-                if (Array.IndexOf(XBUTTON2, hookStruct.mouseData) >= 0)
+            if (Array.IndexOf(XBUTTON2, hookStruct.mouseData) >= 0)
             {
+                ForwardButtonDown = false;
                 if (!otherButtonPressedWhileSideButtonPressed)
                 {
 
 
                     KeyboardInput.PressBrowserForward();
                     KeyboardInput.ReleaseBrowserForward();
-
                     return (IntPtr)1;
 
                 }
@@ -236,15 +242,12 @@ public static class MouseHook
 
 
 
+
         return CallNextHookEx(_hookID, nCode, wParam, lParam);
     }
 
 
 
-
-
-
-// キーボード
 
 
 
@@ -295,7 +298,6 @@ public static class MouseHook
 
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr GetModuleHandle(string lpModuleName);
-
 
 
 }

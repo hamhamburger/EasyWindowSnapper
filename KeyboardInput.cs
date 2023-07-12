@@ -5,15 +5,7 @@ using System.Windows.Forms;
 public static class KeyboardInput
 {
     const int INPUT_KEYBOARD = 1;
-    const uint KEYEVENTF_EXTENDEDKEY = 0x0001;
     const uint KEYEVENTF_KEYUP = 0x0002;
-    const uint KEYEVENTF_UNICODE = 0x0004;
-    const uint KEYEVENTF_SCANCODE = 0x0008;
-    const int INPUT_MOUSE = 0;
-    const uint MOUSEEVENTF_XDOWN = 0x0080;
-    const uint MOUSEEVENTF_XUP = 0x0100;
-    const uint XBUTTON1 = 0x0001; // 戻るボタン
-    const uint XBUTTON2 = 0x0002; // 進むボタン
 
     [DllImport("user32.dll")]
     static extern uint SendInput(uint nInputs, [MarshalAs(UnmanagedType.LPArray), In] INPUT[] pInputs, int cbSize);
