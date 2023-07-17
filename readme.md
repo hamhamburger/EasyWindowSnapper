@@ -41,5 +41,12 @@ Apps like Explorer, video editors, and games may slow when resizing windows. A w
 
 - Clicks may become unresponsive, a bug from previous versions. Press Ctrl+Alt+Delete to resolve.
 
+Those issues are caused by sluggish resizing of applications like Explorer.  
+Can happen in lower-specification computer.
+Currently implementing solutions for these problems.
+
+
 # Note
-While the application is running, it substitutes the mouse's Forward and Back buttons with the Browser Back and Forward functions of the keyboard. These buttons will work as intended when pressed alone. However, in VSCode, these functions might not work as expected. In this case, please change the Go Forward and Go Back shortcuts in VSCode to Browser Back and Browser Forward.
+While the application is running, it substitutes the mouse's Forward and Back buttons with the Browser Back and Forward functions of the keyboard.  
+These buttons will work as intended when pressed alone.  
+However, in VSCode, Browser Back and Forward not work by default. Please add  Browser Back and Browser Forward key to the Go Forward and Go Back shortcuts in VSCode.
