@@ -250,7 +250,6 @@ public partial class WindowSelector : Form
         {
             Bitmap resizedIcon;
             Icon appIcon = IconManager.Instance.ExtractIconFromWindowHandle(window.Handle);
-            System.Diagnostics.Debug.WriteLine(appIcon);
             Bitmap bitmap = appIcon.ToBitmap();
             // Resize the icon to the standard icon size
             resizedIcon = new Bitmap(bitmap, standardIconSize);

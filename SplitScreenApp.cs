@@ -98,8 +98,6 @@ public class SplitScreenApp
 
         // Get new window size
         GetWindowRect(window, out rect);
-        System.Diagnostics.Debug.WriteLine($"GetMinWidth: {rect.Right - rect.Left}");
-        System.Diagnostics.Debug.WriteLine($"right: {rect.Right}, left: {rect.Left}");
         int minWidth = rect.Right - rect.Left;
 
         // Restore original size
@@ -311,6 +309,8 @@ public class SplitScreenApp
         _leftDummyWindow.Visible = false;
         _rightDummyWindow = new DummyWindow(0, 0, 0, 0);
         _rightDummyWindow.Visible = false;
+
+        ClearContext();
 
     }
 
@@ -1239,7 +1239,6 @@ public class SplitScreenApp
         }
         else
         {
-            System.Diagnostics.Debug.WriteLine("ShrinkRightExpandLeft");
             ShrinkRightExpandLeftBothWindows(workingArea, context);
         }
     }
@@ -1316,12 +1315,7 @@ public class SplitScreenApp
 
     private bool ShrinkRightExpandLeftBothWindows(Rectangle workingArea, ResizingContext context)
     {
-        System.Diagnostics.Debug.WriteLine("Line 1297");
-        System.Diagnostics.Debug.WriteLine(context.ActualRightWindow);
-        System.Diagnostics.Debug.WriteLine(context.ActualRightWindow != IntPtr.Zero ? context.ActualRightWindow : "null");
-        System.Diagnostics.Debug.WriteLine(GetMinWidthWithCache(context.ActualRightWindow != IntPtr.Zero ? context.ActualRightWindow : context.RightWindow));
         int newRightWindowWidth = Math.Max(GetShrinkedWindowWidth(context.RightWindow, context.ExtendPixel), GetMinWidthWithCache(context.ActualRightWindow != IntPtr.Zero ? context.ActualRightWindow : context.RightWindow));
-        System.Diagnostics.Debug.WriteLine("newRightWindowWidth:" + newRightWindowWidth);
 
         int newLeftWindowWidth = workingArea.Width - newRightWindowWidth;
 
@@ -1352,7 +1346,6 @@ public class SplitScreenApp
     private int GetShrinkedWindowWidth(IntPtr windowHandle, int extendPixel)
     {
         GetWindowRect(windowHandle, out RECT windowRect);
-        System.Diagnostics.Debug.WriteLine("windowRect.Width:" + windowRect.Width);
 
         return (int)(windowRect.Width - extendPixel);
     }
