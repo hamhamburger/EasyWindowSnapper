@@ -14,9 +14,11 @@ public class AppSettings
         SWAP_WINDOWS
     }
 
-    public const double DefaultZoomRatio = 0.025;
+    public const double DefaultZoomRatio = 0.015;
     public const double DefaultLeftScreenRatio = 0.6;
-    public List<string> DefaultIgnoreWindowTitles = new List<string> { "Windows 入力エクスペリエンス", "設定", "メール", "Spotify Widget", "タスク マネージャー" };
+    public static List<string> DefaultIgnoreWindowTitles = new List<string> { "Windows 入力エクスペリエンス", "設定", "メール", "Spotify Widget", "タスク マネージャー" };
+
+    public static List<string> DefaultNonImmediateResizeWindowClasses = new List<string> { "ExploreWClass", "CabinetWClass" };
 
     public const int DefaultMaxDisplayRows = 10;
 
@@ -33,7 +35,10 @@ public class AppSettings
 
     public double ExtendRatio { get; set; } = DefaultZoomRatio;
     public double LeftScreenRatio { get; set; } = DefaultLeftScreenRatio;
-    public List<string> IgnoreWindowTitles { get; set; } = new List<string> { "Windows 入力エクスペリエンス", "設定", "メール" };
+    public List<string> IgnoreWindowTitles { get; set; } = DefaultIgnoreWindowTitles;
+    // ウィンドウのリサイズ時に毎回サイズを変更しないウィンドウのクラス名
+
+    public List<string> NonImmediateResizeWindowClasses { get; set; } = DefaultNonImmediateResizeWindowClasses;
 
     public int MaxDisplayRows { get; set; } = DefaultMaxDisplayRows;
 

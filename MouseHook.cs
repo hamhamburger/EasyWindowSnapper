@@ -215,6 +215,10 @@ public static class MouseHook
                 BackButtonDown = false;
                 if (!otherButtonPressedWhileSideButtonPressed)
                 {
+
+
+                    // サイドボタン単体で押された場合はキーボードで本来のイベントをシミュレート
+                    // マウスイベントは発生させない
                     KeyboardInput.PressBrowserBack();
                     KeyboardInput.ReleaseBrowserBack();
 
@@ -228,12 +232,9 @@ public static class MouseHook
                 ForwardButtonDown = false;
                 if (!otherButtonPressedWhileSideButtonPressed)
                 {
-
-
                     KeyboardInput.PressBrowserForward();
                     KeyboardInput.ReleaseBrowserForward();
                     return (IntPtr)1;
-
                 }
 
             }
@@ -246,13 +247,6 @@ public static class MouseHook
         return CallNextHookEx(_hookID, nCode, wParam, lParam);
     }
 
-
-
-
-
-
-
-    // その他の定数、構造体、およびメソッド定義は省略 // マウスメッセージの列挙型
     private enum MouseMessages
 
     {
@@ -299,5 +293,27 @@ public static class MouseHook
     [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     private static extern IntPtr GetModuleHandle(string lpModuleName);
 
+    [DllImport("user32.dll")]
+    public static extern bool ReleaseCapture();
 
+
+    // debug
+
+    [DllImport("user32.dll")]
+    static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    static extern int GetWindowText(IntPtr hWnd, StringBuilder text, int count);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [DllImport("user32.dll", SetLastError = false)]
+    static extern IntPtr GetDesktopWindow();
 }

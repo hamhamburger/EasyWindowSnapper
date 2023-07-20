@@ -14,7 +14,10 @@ public class SplitScreenApp
     private static double ExtendRatio => AppSettings.Instance.ExtendRatio;
     private static ButtonAction MiddleForwardButtonClickAction => AppSettings.Instance.MiddleForwardButtonClickAction;
     private static ButtonAction MiddleBackButtonClickAction => AppSettings.Instance.MiddleBackButtonClickAction;
+    // ウィンドウの一覧表示で無視するウィンドウのタイトル
     private static List<string> IgnoreWindowTitles => AppSettings.Instance.IgnoreWindowTitles;
+    // ウィンドウのリサイズ時に毎回サイズを変更しないウィンドウのクラス名
+    private static List<string> NonImmediateResizeWindowClasses => AppSettings.Instance.NonImmediateResizeWindowClasses;
     // 透過
     const int GWL_EXSTYLE = -20;
     const int WS_EX_LAYERED = 0x80000;
@@ -44,6 +47,10 @@ public class SplitScreenApp
     const uint SWP_NOMOVE = 0x0002;
     const uint SWP_NOSIZE = 0x0001;
 
+    const int SW_HIDE = 0;
+    const int SW_SHOW = 5;
+
+
     private const int SNAP_WAIT_TIME = 100;
 
 
@@ -60,7 +67,7 @@ public class SplitScreenApp
 
     // パフォーマンス改善用
 
-    private bool isBackButtonPressed = false;
+    private bool resizeStarted = false;
 
 
     // ウィンドウの最小幅のキャッシュ
@@ -86,9 +93,13 @@ public class SplitScreenApp
 
         // Set width to minimum
         SetWindowPos(window, IntPtr.Zero, rect.Left, rect.Top, 1, originalHeight, SWP_NOZORDER | SWP_NOACTIVATE);
+        Thread.Sleep(10);
+
 
         // Get new window size
         GetWindowRect(window, out rect);
+        System.Diagnostics.Debug.WriteLine($"GetMinWidth: {rect.Right - rect.Left}");
+        System.Diagnostics.Debug.WriteLine($"right: {rect.Right}, left: {rect.Left}");
         int minWidth = rect.Right - rect.Left;
 
         // Restore original size
@@ -104,6 +115,8 @@ public class SplitScreenApp
     {
         public IntPtr LeftWindow { get; set; }
         public IntPtr RightWindow { get; set; }
+        public IntPtr ActualLeftWindow { get; set; }
+        public IntPtr ActualRightWindow { get; set; }
         public int ExtendPixel { get; set; }
         public int MonitorWidth { get; set; }
         public int MonitorIndex { get; set; }
@@ -111,11 +124,10 @@ public class SplitScreenApp
     private ResizingContext context;
 
 
-
-
-    // ウィンドウ情報を管理するための変数と構造体の定義
     private NotifyIcon _trayIcon;
     private WindowSelector _windowSelector;
+    private DummyWindow _leftDummyWindow;
+    private DummyWindow _rightDummyWindow;
 
     private List<WindowItem> _windows = new List<WindowItem>(); // 管理するウィンドウのリスト
 
@@ -221,6 +233,9 @@ public class SplitScreenApp
     [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
     static extern int GetWindowText(IntPtr hWnd, System.Text.StringBuilder lpString, int nMaxCount);
 
+    [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+    public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
     [DllImport("user32.dll")]
     static extern IntPtr GetShellWindow();
 
@@ -265,7 +280,6 @@ public class SplitScreenApp
     public SplitScreenApp()
     {
 
-
         // コンテキストメニューストリップを作成し、"Exit"メニューアイテムで充填
         var contextMenuStrip = new ContextMenuStrip();
 
@@ -292,6 +306,11 @@ public class SplitScreenApp
         // フォームの初期化と非表示設定
         _windowSelector = new WindowSelector(new List<WindowItem>());
         _windowSelector.Visible = false;
+
+        _leftDummyWindow = new DummyWindow(0, 0, 0, 0);
+        _leftDummyWindow.Visible = false;
+        _rightDummyWindow = new DummyWindow(0, 0, 0, 0);
+        _rightDummyWindow.Visible = false;
 
     }
 
@@ -526,9 +545,10 @@ public class SplitScreenApp
         if (currentLeftWindowWidth <= currentRightWindowWidth)
         {
             newRightWindowWidth = Math.Max(currentLeftWindowWidth, GetMinWidth(rightWindowRoot));
-            newLeftWindowWidth = workingArea.Width  + workingArea.X - newRightWindowWidth;
+            newLeftWindowWidth = workingArea.Width + workingArea.X - newRightWindowWidth;
         }
-        else {
+        else
+        {
             newLeftWindowWidth = Math.Max(currentRightWindowWidth, GetMinWidth(leftWindowRoot));
             newRightWindowWidth = workingArea.Width + workingArea.X - newLeftWindowWidth;
         }
@@ -710,14 +730,49 @@ public class SplitScreenApp
             _windows.Clear();
             _windowSelector.ResetIndex();
             _windowSelector.Hide();
+
         }
         if (e.ReleasedButton == MouseButtons.XButton1)
         {
-            isBackButtonPressed = false;
+            resizeStarted = false;
             _windows.Clear();
             _windowSelector.Hide();
+
+            // ダミーのウィンドウを基に実際のウィンドウのサイズを設定し復元
+            RestoreFromDummyWindow(context);
+
         }
     }
+
+    private void RestoreFromDummyWindow(ResizingContext context)
+    {
+        if (context.ActualLeftWindow != IntPtr.Zero)
+        {
+            GetWindowRect(context.LeftWindow, out RECT leftWindowRect);
+            int width = leftWindowRect.Right - leftWindowRect.Left;
+            int height = leftWindowRect.Bottom - leftWindowRect.Top;
+
+            SetWindowPos(context.ActualLeftWindow, IntPtr.Zero, leftWindowRect.Left, leftWindowRect.Top, width, height, 0);
+            ShowWindow(context.ActualLeftWindow, SW_SHOW);
+
+        }
+
+        if (context.ActualRightWindow != IntPtr.Zero)
+        {
+            GetWindowRect(context.RightWindow, out RECT rightWindowRect);
+
+            Rectangle workingArea = GetMonitorWorkingArea(context.MonitorIndex);
+            int width = rightWindowRect.Right - rightWindowRect.Left;
+            int height = rightWindowRect.Bottom - rightWindowRect.Top;
+            SetWindowPos(context.ActualRightWindow, IntPtr.Zero, workingArea.Right - width, workingArea.Top, width, height, 0);
+            ShowWindow(context.ActualRightWindow, SW_SHOW);
+        }
+        _leftDummyWindow.Hide();
+        _rightDummyWindow.Hide();
+
+        ClearContext();
+    }
+
 
     private void MinimizeWindow(IntPtr hWnd)
     {
@@ -764,14 +819,28 @@ public class SplitScreenApp
         switch (e.PressedButton)
         {
             case MouseButtons.Left:
+                if (context.ActualLeftWindow != IntPtr.Zero || context.ActualRightWindow != IntPtr.Zero)
+                {
+                    return;
+
+                }
+
                 SnapWindow(hwnd, monitorIndex, true);
                 SetContext(monitorIndex);
                 break;
             case MouseButtons.Right:
+                if (context.ActualLeftWindow != IntPtr.Zero || context.ActualRightWindow != IntPtr.Zero)
+                {
+                    return;
+                }
                 SnapWindow(hwnd, monitorIndex, false);
                 SetContext(monitorIndex);
                 break;
             case MouseButtons.Middle:
+                if (context.ActualLeftWindow != IntPtr.Zero || context.ActualRightWindow != IntPtr.Zero)
+                {
+                    return;
+                }
                 switch (MiddleBackButtonClickAction)
                 {
                     case
@@ -807,11 +876,13 @@ public class SplitScreenApp
         // ホイール時の処理
         if (e.Delta != 0)
         {
-            if (isBackButtonPressed == false)
-            {
-                isBackButtonPressed = true;
 
-                SetContext(monitorIndex);
+            // 初回のみコンテクストをセット
+            if (resizeStarted == false)
+            {
+                resizeStarted = true;
+
+                SetContextWithDummy(monitorIndex);
                 MoveForeGroundWindow(context.LeftWindow);
                 MoveForeGroundWindow(context.RightWindow);
             }
@@ -821,10 +892,6 @@ public class SplitScreenApp
 
             if (tasks.Count < MAX_PENDING_CALLS)
             {
-                System.Diagnostics.Debug.WriteLine("left");
-                System.Diagnostics.Debug.WriteLine(context.LeftWindow);
-                System.Diagnostics.Debug.WriteLine("right");
-                System.Diagnostics.Debug.WriteLine(context.RightWindow);
                 var task = ResizeWindowBasedOnDelta(e, context);
                 tasks.Enqueue(task);
 
@@ -848,6 +915,53 @@ public class SplitScreenApp
         {
             LeftWindow = leftWindowRoot,
             RightWindow = rightWindowRoot,
+            ExtendPixel = GetExtendPixel(monitorIndex),
+            MonitorWidth = GetMonitorWorkingArea(monitorIndex).Width,
+            MonitorIndex = monitorIndex
+        };
+    }
+
+    private void ClearContext()
+    {
+        context = new ResizingContext();
+    }
+
+    private void SetContextWithDummy(int monitorIndex)
+    {
+        var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
+        var ActualLeftWindow = IntPtr.Zero;
+        var ActualRightWindow = IntPtr.Zero;
+
+        if (NonImmediateResizeWindowClasses.Contains(GetWindowClassName(leftWindowRoot)))
+        {
+            ActualLeftWindow = leftWindowRoot;
+            leftWindowRoot = _leftDummyWindow.WindowHandle;
+
+            _leftDummyWindow.DisplayIcon(ActualLeftWindow);
+            GetWindowRect(ActualLeftWindow, out RECT leftWindowRect);
+            SetWindowPos(leftWindowRoot, IntPtr.Zero, leftWindowRect.Left, leftWindowRect.Top, leftWindowRect.Right - leftWindowRect.Left, leftWindowRect.Bottom - leftWindowRect.Top, SWP_NOZORDER | SWP_NOACTIVATE);
+            ShowWindow(ActualLeftWindow, SW_HIDE);
+            _leftDummyWindow.Show();
+        }
+
+        if (NonImmediateResizeWindowClasses.Contains(GetWindowClassName(rightWindowRoot)))
+        {
+            ActualRightWindow = rightWindowRoot;
+            rightWindowRoot = _rightDummyWindow.WindowHandle;
+
+            _rightDummyWindow.DisplayIcon(ActualRightWindow);
+            GetWindowRect(ActualRightWindow, out RECT rightWindowRect);
+            SetWindowPos(rightWindowRoot, IntPtr.Zero, rightWindowRect.Left, rightWindowRect.Top, rightWindowRect.Right - rightWindowRect.Left, rightWindowRect.Bottom - rightWindowRect.Top, SWP_NOZORDER | SWP_NOACTIVATE);
+            ShowWindow(ActualRightWindow, SW_HIDE);
+            _rightDummyWindow.Show();
+        }
+
+        context = new ResizingContext
+        {
+            LeftWindow = leftWindowRoot,
+            RightWindow = rightWindowRoot,
+            ActualLeftWindow = ActualLeftWindow,
+            ActualRightWindow = ActualRightWindow,
             ExtendPixel = GetExtendPixel(monitorIndex),
             MonitorWidth = GetMonitorWorkingArea(monitorIndex).Width,
             MonitorIndex = monitorIndex
@@ -1033,6 +1147,13 @@ public class SplitScreenApp
         return sb.ToString();
     }
 
+    public static string GetWindowClassName(IntPtr hWnd)
+    {
+        StringBuilder className = new StringBuilder(256);
+        GetClassName(hWnd, className, className.Capacity);
+        return className.ToString();
+    }
+
 
     private Dictionary<int, int> extendPixels = new Dictionary<int, int>();
 
@@ -1108,7 +1229,6 @@ public class SplitScreenApp
         }
         else if (context.RightWindow == IntPtr.Zero)
         {
-            System.Diagnostics.Debug.WriteLine("ExpandLeftWindow");
             ExpandLeftWindow(workingArea, context);
         }
         else if (context.LeftWindow == context.RightWindow)
@@ -1127,7 +1247,7 @@ public class SplitScreenApp
     private void ShrinkLeftWindow(Rectangle workingArea, ResizingContext context)
     {
         var shrinkedLeftWindowWidth = GetShrinkedWindowWidth(context.LeftWindow, context.ExtendPixel);
-        shrinkedLeftWindowWidth = Math.Max(shrinkedLeftWindowWidth, GetMinWidthWithCache(context.LeftWindow));
+        shrinkedLeftWindowWidth = Math.Max(shrinkedLeftWindowWidth, GetMinWidthWithCache(context.ActualLeftWindow != IntPtr.Zero ? context.ActualLeftWindow : context.LeftWindow));
         if (IsZoomed(context.LeftWindow))
         {
             ShowWindow(context.LeftWindow, SW_RESTORE);
@@ -1146,7 +1266,7 @@ public class SplitScreenApp
 
     private bool ShrinkLeftExpandRightBothWindows(Rectangle workingArea, ResizingContext context)
     {
-        int newLeftWindowWidth = Math.Max(GetShrinkedWindowWidth(context.LeftWindow, context.ExtendPixel), GetMinWidthWithCache(context.LeftWindow));
+        int newLeftWindowWidth = Math.Max(GetShrinkedWindowWidth(context.LeftWindow, context.ExtendPixel), GetMinWidthWithCache(context.ActualLeftWindow != IntPtr.Zero ? context.ActualLeftWindow : context.LeftWindow));
 
         int newRightWindowWidth = workingArea.Width - newLeftWindowWidth;
 
@@ -1178,7 +1298,7 @@ public class SplitScreenApp
     {
 
         var shrinkedRightWindowWidth = GetShrinkedWindowWidth(context.RightWindow, context.ExtendPixel);
-        shrinkedRightWindowWidth = Math.Max(shrinkedRightWindowWidth, GetMinWidthWithCache(context.RightWindow));
+        shrinkedRightWindowWidth = Math.Max(shrinkedRightWindowWidth, GetMinWidthWithCache(context.ActualRightWindow != IntPtr.Zero ? context.ActualRightWindow : context.RightWindow));
         if (IsZoomed(context.RightWindow))
         {
             ShowWindow(context.RightWindow, SW_RESTORE);
@@ -1196,7 +1316,12 @@ public class SplitScreenApp
 
     private bool ShrinkRightExpandLeftBothWindows(Rectangle workingArea, ResizingContext context)
     {
-        int newRightWindowWidth = Math.Max(GetShrinkedWindowWidth(context.RightWindow, context.ExtendPixel), GetMinWidthWithCache(context.RightWindow));
+        System.Diagnostics.Debug.WriteLine("Line 1297");
+        System.Diagnostics.Debug.WriteLine(context.ActualRightWindow);
+        System.Diagnostics.Debug.WriteLine(context.ActualRightWindow != IntPtr.Zero ? context.ActualRightWindow : "null");
+        System.Diagnostics.Debug.WriteLine(GetMinWidthWithCache(context.ActualRightWindow != IntPtr.Zero ? context.ActualRightWindow : context.RightWindow));
+        int newRightWindowWidth = Math.Max(GetShrinkedWindowWidth(context.RightWindow, context.ExtendPixel), GetMinWidthWithCache(context.ActualRightWindow != IntPtr.Zero ? context.ActualRightWindow : context.RightWindow));
+        System.Diagnostics.Debug.WriteLine("newRightWindowWidth:" + newRightWindowWidth);
 
         int newLeftWindowWidth = workingArea.Width - newRightWindowWidth;
 
@@ -1223,26 +1348,12 @@ public class SplitScreenApp
     }
 
 
-    // ウィンドウを最小幅以下にしようとした場合ずれてしまうので、ずれないように調整する
-    // →ウィンドウごとに最小幅を保存することで不要になった
-
-    // private int AdjustWindowWidthIfNecessary(IntPtr window, Rectangle workingArea, int expectedWidth, bool isLeft)
-    // {
-
-    //     GetWindowRect(window, out RECT rect);
-    //     if (rect.Width > expectedWidth)
-    //     {
-    //         int newXPosition = isLeft ? workingArea.X : workingArea.X + workingArea.Width - rect.Width;
-    //         SetWindowPos(window, (IntPtr)HWND_TOP, newXPosition, workingArea.Y, rect.Width, workingArea.Height, 0x0040);
-    //         return rect.Width;
-    //     }
-    //     return expectedWidth;
-    // }
-
 
     private int GetShrinkedWindowWidth(IntPtr windowHandle, int extendPixel)
     {
         GetWindowRect(windowHandle, out RECT windowRect);
+        System.Diagnostics.Debug.WriteLine("windowRect.Width:" + windowRect.Width);
+
         return (int)(windowRect.Width - extendPixel);
     }
 

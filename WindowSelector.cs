@@ -41,9 +41,6 @@ public partial class WindowSelector : Form
     [DllImport("user32.dll", SetLastError = true)]
     static extern IntPtr LoadIcon(IntPtr hInstance, string lpIconName);
 
-    [DllImport("user32.dll")]
-    static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
-
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
 
@@ -56,8 +53,6 @@ public partial class WindowSelector : Form
     private Bitmap transparentIconBitmap;
 
     private Icon transparentIcon;
-
-    private Dictionary<IntPtr, IntPtr> iconCache = new Dictionary<IntPtr, IntPtr>();
     private Dictionary<IntPtr, uint> handleProcessIdCache = new Dictionary<IntPtr, uint>();
     private Dictionary<uint, Icon> processIdIconCache = new Dictionary<uint, Icon>();
 
@@ -88,49 +83,6 @@ public partial class WindowSelector : Form
     }
 
 
-
-    public IntPtr GetWindowIcon(IntPtr hWnd)
-    {
-        IntPtr hIcon = default(IntPtr);
-
-        hIcon = SendMessage(hWnd, WM_GETICON, new IntPtr(ICON_SMALL2), IntPtr.Zero);
-        if (hIcon == IntPtr.Zero)
-        {
-            hIcon = SendMessage(hWnd, WM_GETICON, new IntPtr(ICON_BIG), IntPtr.Zero);
-        }
-        if (hIcon == IntPtr.Zero)
-        {
-            hIcon = SendMessage(hWnd, WM_GETICON, new IntPtr(ICON_SMALL), IntPtr.Zero);
-        }
-        if (hIcon == IntPtr.Zero)
-        {
-            hIcon = GetClassLongPtr(hWnd, GCL_HICONSM);
-        }
-        if (hIcon == IntPtr.Zero)
-        {
-            hIcon = GetClassLongPtr(hWnd, GCL_HICON);
-        }
-        if (hIcon == IntPtr.Zero)
-        {
-            hIcon = LoadIcon(IntPtr.Zero, IDI_APPLICATION);
-        }
-        return hIcon;
-    }
-
-
-    public IntPtr GetWindowIconCached(IntPtr hWnd)
-    {
-        if (iconCache.ContainsKey(hWnd))
-        {
-            return iconCache[hWnd];
-        }
-        else
-        {
-            IntPtr icon = GetWindowIcon(hWnd);
-            iconCache[hWnd] = icon;
-            return icon;
-        }
-    }
 
     [StructLayout(LayoutKind.Sequential)]
     public struct RECT
@@ -246,37 +198,6 @@ public partial class WindowSelector : Form
     }
 
 
-    public Icon ExtractIconFromWindowHandle(IntPtr windowHandle)
-    {
-        uint processId = 0;
-        if (!handleProcessIdCache.TryGetValue(windowHandle, out processId))
-        {
-            GetWindowThreadProcessId(windowHandle, out processId); // This is a Windows API function
-            handleProcessIdCache[windowHandle] = processId;
-        }
-        if (processId == 0)
-        {
-            throw new ArgumentException("Could not find process associated with window handle");
-        }
-        Icon icon = null;
-        if (!processIdIconCache.TryGetValue(processId, out icon))
-        {
-            try
-            {
-                Process process = Process.GetProcessById((int)processId);
-                string executablePath = process.MainModule.FileName;
-                icon = Icon.ExtractAssociatedIcon(executablePath);
-                processIdIconCache[processId] = icon;
-            }
-            catch (Win32Exception e) when (e.NativeErrorCode == 5) // Access Denied error
-            {
-                icon = transparentIcon; // Use pre-generated transparent icon
-                processIdIconCache[processId] = icon;
-            }
-        }
-        return icon;
-    }
-
     private void SetupIcons()
     {
         // アイコンパスを設定し、アイコンを読み込む
@@ -328,7 +249,7 @@ public partial class WindowSelector : Form
         foreach (var window in new List<WindowItem>(_windows))
         {
             Bitmap resizedIcon;
-            Icon appIcon = ExtractIconFromWindowHandle(window.Handle);
+            Icon appIcon = IconManager.Instance.ExtractIconFromWindowHandle(window.Handle);
             System.Diagnostics.Debug.WriteLine(appIcon);
             Bitmap bitmap = appIcon.ToBitmap();
             // Resize the icon to the standard icon size

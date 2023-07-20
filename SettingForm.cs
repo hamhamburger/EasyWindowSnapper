@@ -12,8 +12,6 @@ using static AppSettings;
 
 public class SettingsForm : Form
 {
-    private static readonly List<string> DefaultIgnoreWindowTitles = new List<string> { "Windows 入力エクスペリエンス", "設定", "メール" };
-
     private ComboBox _middleForwardButtonClickActionComboBox;
 
     private ComboBox _middleBackButtonClickActionComboBox;
@@ -22,6 +20,8 @@ public class SettingsForm : Form
     private NumericUpDown _leftScreenRatioNumericUpDown;
 
     private TextBox _ignoreWindowTitlesTextBox;
+
+    private TextBox _nonImmediateResizeWindowClassesTextBox;
 
     private NumericUpDown _maxDisplayRowsNumericUpDown;
     private NumericUpDown _rowHeightNumericUpDown;
@@ -127,12 +127,12 @@ public class SettingsForm : Form
         var maxDisplayRowsLabel = new Label
         {
             Text = "ウィンドウ一覧画面で表示する数(反映には再起動が必要です):",
-            Location = new Point(20, 260),  // Changed from 380 to 260
+            Location = new Point(20, 260),
             AutoSize = true,
         };
         _maxDisplayRowsNumericUpDown = new NumericUpDown
         {
-            Location = new Point(20, 280),  // Changed from 400 to 280
+            Location = new Point(20, 280),
             Width = 200,
             Minimum = 1,
             Maximum = 100,
@@ -166,8 +166,22 @@ public class SettingsForm : Form
         {
             Location = new Point(20, 400),
             Width = 450,
-            
-            Text = string.Join(",", DefaultIgnoreWindowTitles)
+
+            Text = string.Join(",", AppSettings.DefaultIgnoreWindowTitles)
+        };
+
+        var nonImmediateResizeWindowClassesLabel = new Label
+        {
+            Text = "リサイズの回数を抑制するウィンドウのクラス名(カンマ区切りで記載して下さい):",
+            Location = new Point(20, 440),
+            AutoSize = true
+        };
+
+        _nonImmediateResizeWindowClassesTextBox = new TextBox
+        {
+            Location = new Point(20, 460),
+            Width = 450,
+            Text = string.Join(",", DefaultNonImmediateResizeWindowClasses)
         };
 
 
@@ -192,8 +206,9 @@ public class SettingsForm : Form
             zoomRatioLabel.Text = "Zoom ratio for window width adjustment with back+wheel:";
             leftScreenRatioLabel.Text = "Ratio of left window in window snapping:";
             ignoreWindowTitlesLabel.Text = "List of window titles to ignore (comma separated):";
+            nonImmediateResizeWindowClassesLabel.Text = "List of window classes to suppress resize (comma separated):";
             maxDisplayRowsLabel.Text = "Number of rows displayed in the window list (requires restart):";  // Added this line
-            rowHeightLabel.Text = "Row height:";  // Added this line
+            rowHeightLabel.Text = "Row height:";
 
             _middleForwardButtonClickActionComboBox.Items.Clear();
             _middleForwardButtonClickActionComboBox.Items.Add(new ComboBoxItem { Value = ButtonAction.MINIMIZE_WINDOW, Text = "Minimize selected window" });
@@ -224,6 +239,8 @@ public class SettingsForm : Form
         Controls.Add(_leftScreenRatioNumericUpDown);
         Controls.Add(ignoreWindowTitlesLabel);
         Controls.Add(_ignoreWindowTitlesTextBox);
+        Controls.Add(nonImmediateResizeWindowClassesLabel);
+        Controls.Add(_nonImmediateResizeWindowClassesTextBox);
         Controls.Add(maxDisplayRowsLabel);
         Controls.Add(_maxDisplayRowsNumericUpDown);
         Controls.Add(rowHeightLabel);
@@ -262,6 +279,7 @@ public class SettingsForm : Form
         _zoomRatioNumericUpDown.Value = (decimal)settings.ExtendRatio;
         _leftScreenRatioNumericUpDown.Value = (decimal)settings.LeftScreenRatio;
         _ignoreWindowTitlesTextBox.Text = string.Join(",", settings.IgnoreWindowTitles);
+        _nonImmediateResizeWindowClassesTextBox.Text = string.Join(",", settings.NonImmediateResizeWindowClasses);
         _maxDisplayRowsNumericUpDown.Value = settings.MaxDisplayRows;
         _rowHeightNumericUpDown.Value = settings.RowHeight;
     }
@@ -272,6 +290,7 @@ public class SettingsForm : Form
         _zoomRatioNumericUpDown.Value = (decimal)DefaultZoomRatio;
         _leftScreenRatioNumericUpDown.Value = (decimal)DefaultLeftScreenRatio;
         _ignoreWindowTitlesTextBox.Text = string.Join(",", DefaultIgnoreWindowTitles);
+        _nonImmediateResizeWindowClassesTextBox.Text = string.Join(",", DefaultNonImmediateResizeWindowClasses);
         _maxDisplayRowsNumericUpDown.Value = DefaultMaxDisplayRows;
         _rowHeightNumericUpDown.Value = DefaultRowHeight;
     }
@@ -289,6 +308,7 @@ public class SettingsForm : Form
             AppSettings.Instance.ExtendRatio = (double)_zoomRatioNumericUpDown.Value;
             AppSettings.Instance.LeftScreenRatio = (double)_leftScreenRatioNumericUpDown.Value;
             AppSettings.Instance.IgnoreWindowTitles = _ignoreWindowTitlesTextBox.Text.Split(',').ToList();
+            AppSettings.Instance.NonImmediateResizeWindowClasses = _nonImmediateResizeWindowClassesTextBox.Text.Split(',').ToList();
             AppSettings.Instance.MaxDisplayRows = (int)_maxDisplayRowsNumericUpDown.Value;
             AppSettings.Instance.RowHeight = (int)_rowHeightNumericUpDown.Value;
 
