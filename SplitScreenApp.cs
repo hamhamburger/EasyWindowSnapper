@@ -577,15 +577,18 @@ public class SplitScreenApp
         IntPtr leftWindowHandle1 = WindowFromPoint(new Point(leftWindowX, y1));
         IntPtr leftWindowHandle2 = WindowFromPoint(new Point(leftWindowX, y2));
 
+        IntPtr leftWindowHandle1Root = GetAncestor(leftWindowHandle1, GA_ROOT);
+        IntPtr leftWindowHandle2Root = GetAncestor(leftWindowHandle2, GA_ROOT);
 
         IntPtr rightWindowHandle1 = WindowFromPoint(new Point(rightWindowX, y1));
         IntPtr rightWindowHandle2 = WindowFromPoint(new Point(rightWindowX, y2));
+        IntPtr rightWindowHandle1Root = GetAncestor(rightWindowHandle1, GA_ROOT);
+        IntPtr rightWindowHandle2Root = GetAncestor(rightWindowHandle2, GA_ROOT);
 
 
-        IntPtr rightWindowHandle = rightWindowHandle1 == rightWindowHandle2 ? rightWindowHandle1 : IntPtr.Zero;
-        IntPtr leftWindowHandle = leftWindowHandle1 == leftWindowHandle2 ? leftWindowHandle1 : IntPtr.Zero;
-        IntPtr rightWindowRoot = GetAncestor(rightWindowHandle, GA_ROOT);
-        IntPtr leftWindowRoot = GetAncestor(leftWindowHandle, GA_ROOT);
+        IntPtr rightWindowRoot = rightWindowHandle1Root == rightWindowHandle2Root ? rightWindowHandle1Root : IntPtr.Zero;
+        IntPtr leftWindowRoot = leftWindowHandle1Root == leftWindowHandle2Root ? leftWindowHandle1Root : IntPtr.Zero;
+
 
         StringBuilder title = new StringBuilder(256);
         GetWindowText(leftWindowRoot, title, title.Capacity);
