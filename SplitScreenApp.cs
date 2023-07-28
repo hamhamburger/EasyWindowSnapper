@@ -18,6 +18,9 @@ public class SplitScreenApp
     private static List<string> IgnoreWindowTitles => AppSettings.Instance.IgnoreWindowTitles;
     // ウィンドウのリサイズ時に毎回サイズを変更しないウィンドウのクラス名
     private static List<string> NonImmediateResizeWindowClasses => AppSettings.Instance.NonImmediateResizeWindowClasses;
+    // システム関連のクラス
+    static readonly string[] SystemClasses = { "Windows.UI.Core.CoreWindow", "Progman", "#32769", "Shell_TrayWnd" };
+
     // 透過
     const int GWL_EXSTYLE = -20;
     const int WS_EX_LAYERED = 0x80000;
@@ -235,6 +238,9 @@ public class SplitScreenApp
     public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
 
     [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+
+    [DllImport("user32.dll")]
     static extern IntPtr GetShellWindow();
 
     [DllImport("user32.dll", SetLastError = true)]
@@ -424,7 +430,7 @@ public class SplitScreenApp
                 }
                 else
                 {
-                    MoveWindowByWidth(hWnd, leftWindowRect.Width, true);
+                    MoveWindowByWidthAndAdjust(hWnd, leftWindowRect.Width, true);
                     return;
                 }
             }
@@ -477,9 +483,35 @@ public class SplitScreenApp
 
     }
 
-
-    // TODO　パフォーマンス改善
     private void MoveWindowByWidth(IntPtr hWnd, int width, bool moveToLeft)
+    {
+        Rectangle workingArea = Screen.FromHandle(hWnd).WorkingArea;
+
+        if (IsZoomed(hWnd) || IsIconic(hWnd))
+        {
+            ShowWindow(hWnd, SW_RESTORE);
+        }
+
+        int height = workingArea.Height;
+        int x;
+        int y = workingArea.Y;
+
+        if (moveToLeft)
+        {
+            x = workingArea.X;
+            SetWindowPos(hWnd, (IntPtr)HWND_TOP, x, y, width, height, 0x0040);
+
+        }
+        else
+        {
+            x = (int)(workingArea.X + (workingArea.Width - width));
+        }
+
+        SetWindowPos(hWnd, (IntPtr)HWND_TOP, x, y, width, height, 0x0040);
+    }
+
+
+    private void MoveWindowByWidthAndAdjust(IntPtr hWnd, int width, bool moveToLeft)
     {
         Rectangle workingArea = Screen.FromHandle(hWnd).WorkingArea;
         // ウィンドウが最大化または最小化されている場合、ウィンドウを復元する
@@ -544,97 +576,106 @@ public class SplitScreenApp
 
         if (currentLeftWindowWidth <= currentRightWindowWidth)
         {
+
             newRightWindowWidth = Math.Max(currentLeftWindowWidth, GetMinWidth(rightWindowRoot));
-            newLeftWindowWidth = workingArea.Width + workingArea.X - newRightWindowWidth;
+            newLeftWindowWidth = workingArea.Width - newRightWindowWidth;
         }
         else
         {
             newLeftWindowWidth = Math.Max(currentRightWindowWidth, GetMinWidth(leftWindowRoot));
-            newRightWindowWidth = workingArea.Width + workingArea.X - newLeftWindowWidth;
+            newRightWindowWidth = workingArea.Width - newLeftWindowWidth;
         }
 
 
-        MoveWindowByWidth(leftWindowRoot, newLeftWindowWidth, false);
-        MoveWindowByWidth(rightWindowRoot, newRightWindowWidth, true);
+        MoveWindowByWidthAndAdjust(leftWindowRoot, newLeftWindowWidth, false);
+        MoveWindowByWidthAndAdjust(rightWindowRoot, newRightWindowWidth, true);
     }
 
-
     private (IntPtr leftWindowRoot, IntPtr rightWindowRoot) GetLeftAndRightWindow(int monitorIndex)
+    {
+        ValidateMonitorIndex(monitorIndex);
+        Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
+
+        var (leftPoint1, leftPoint2) = GetPoints(workingArea.X + 30, workingArea.Height, workingArea.Y);
+        var (rightPoint1, rightPoint2) = GetPoints(workingArea.X + workingArea.Width - 30, workingArea.Height, workingArea.Y);
+
+        var leftWindowRoot = GetWindowRoot(leftPoint1, leftPoint2);
+        var rightWindowRoot = GetWindowRoot(rightPoint1, rightPoint2);
+
+        return (leftWindowRoot, rightWindowRoot);
+    }
+
+    private void ValidateMonitorIndex(int monitorIndex)
     {
         if (monitorIndex < 0 || monitorIndex >= Screen.AllScreens.Length)
         {
             throw new ArgumentOutOfRangeException(nameof(monitorIndex), "Invalid monitor index.");
         }
+    }
+
+    private (Point, Point) GetPoints(int x, int height, int y)
+    {
+        int y1 = y + (height / 5);
+        int y2 = y + ((height / 5) * 4);
+        return (new Point(x, y1), new Point(x, y2));
+    }
+
+    private IntPtr GetWindowRoot(Point point1, Point point2)
+    {
+        IntPtr handle1 = WindowFromPoint(point1);
+        IntPtr handle2 = WindowFromPoint(point2);
+
+        IntPtr root1 = GetAncestor(handle1, GA_ROOT);
+        IntPtr root2 = GetAncestor(handle2, GA_ROOT);
+
+        if (root1 != root2 || IsWindowTitleInvalid(root1) || IsSystemClass(root1) || IsWindowSmall(GetWindowPlacementDetails(root1)))
+        {
+            return IntPtr.Zero;
+        }
+
+        return root1;
+    }
 
 
-        Rectangle workingArea = GetMonitorWorkingArea(monitorIndex);
+    public WINDOWPLACEMENT GetWindowPlacementDetails(IntPtr windowRoot)
+    {
+        WINDOWPLACEMENT placement = new WINDOWPLACEMENT();
+        placement.length = Marshal.SizeOf(placement);
+        GetWindowPlacement(windowRoot, ref placement);
 
-        int leftWindowX = workingArea.X + 30;
-        int rightWindowX = workingArea.X + workingArea.Width - 30;
-        int y1 = (workingArea.Y + workingArea.Height) / 5;
-        int y2 = y1 * 4;
-
-        IntPtr leftWindowHandle1 = WindowFromPoint(new Point(leftWindowX, y1));
-        IntPtr leftWindowHandle2 = WindowFromPoint(new Point(leftWindowX, y2));
-
-        IntPtr leftWindowHandle1Root = GetAncestor(leftWindowHandle1, GA_ROOT);
-        IntPtr leftWindowHandle2Root = GetAncestor(leftWindowHandle2, GA_ROOT);
-
-        IntPtr rightWindowHandle1 = WindowFromPoint(new Point(rightWindowX, y1));
-        IntPtr rightWindowHandle2 = WindowFromPoint(new Point(rightWindowX, y2));
-        IntPtr rightWindowHandle1Root = GetAncestor(rightWindowHandle1, GA_ROOT);
-        IntPtr rightWindowHandle2Root = GetAncestor(rightWindowHandle2, GA_ROOT);
+        return placement;
+    }
 
 
-        IntPtr rightWindowRoot = rightWindowHandle1Root == rightWindowHandle2Root ? rightWindowHandle1Root : IntPtr.Zero;
-        IntPtr leftWindowRoot = leftWindowHandle1Root == leftWindowHandle2Root ? leftWindowHandle1Root : IntPtr.Zero;
+    public bool IsWindowSmall(WINDOWPLACEMENT placement)
+    {
+        RECT rcNormalPosition = placement.rcNormalPosition;
+        int windowWidth = rcNormalPosition.Right - rcNormalPosition.Left;
+
+        return IsSmall(windowWidth, rcNormalPosition.Bottom - rcNormalPosition.Top);
+    }
 
 
+
+    public bool IsSystemClass(IntPtr windowRoot)
+    {
+        if (SystemClasses.Contains(GetWindowClassName(windowRoot)))
+        {
+            System.Diagnostics.Debug.WriteLine($"{windowRoot} is system window");
+            return true;
+        }
+        return false;
+    }
+
+    public bool IsWindowTitleInvalid(IntPtr windowRoot)
+    {
         StringBuilder title = new StringBuilder(256);
-        GetWindowText(leftWindowRoot, title, title.Capacity);
+        GetWindowText(windowRoot, title, title.Capacity);
         if (title.Length == 0)
         {
-            leftWindowRoot = IntPtr.Zero;
+            return true;
         }
-        else
-        {
-            WINDOWPLACEMENT placement = new WINDOWPLACEMENT();
-            placement.length = Marshal.SizeOf(placement);
-            GetWindowPlacement(leftWindowRoot, ref placement);
-            RECT rcNormalPosition = placement.rcNormalPosition;
-
-            int windowWidth = rcNormalPosition.Right - rcNormalPosition.Left;
-            if (IsSmall(windowWidth, rcNormalPosition.Bottom - rcNormalPosition.Top))
-            {
-                leftWindowHandle1 = IntPtr.Zero;
-            }
-        }
-
-        title.Clear();
-        GetWindowText(rightWindowRoot, title, title.Capacity);
-        if (title.Length == 0)
-        {
-            rightWindowRoot = IntPtr.Zero;
-        }
-        else
-        {
-            WINDOWPLACEMENT placement = new WINDOWPLACEMENT();
-            placement.length = Marshal.SizeOf(placement);
-            GetWindowPlacement(rightWindowRoot, ref placement);
-            RECT rcNormalPosition = placement.rcNormalPosition;
-
-            int windowWidth = rcNormalPosition.Right - rcNormalPosition.Left;
-            if (IsSmall(windowWidth, rcNormalPosition.Bottom - rcNormalPosition.Top))
-            {
-
-
-                rightWindowRoot = IntPtr.Zero;
-            }
-        }
-
-
-
-        return (leftWindowRoot, rightWindowRoot);
+        return false;
     }
 
 
@@ -716,6 +757,11 @@ public class SplitScreenApp
         Point cursorPosition = GetCursorPosition(e);
         IntPtr hWnd = WindowFromPoint(cursorPosition);
         IntPtr hWndRoot = GetAncestor(hWnd, GA_ROOT);
+        if (IsSystemClass(hWndRoot))
+        {
+            hWndRoot = IntPtr.Zero;
+        }
+
         int monitorIndex = GetMonitorIndex(cursorPosition);
 
         if (e.BackButtonDown)
@@ -885,7 +931,7 @@ public class SplitScreenApp
             {
                 resizeStarted = true;
 
-                SetContextWithDummy(monitorIndex);
+                SetContextWithDummy(monitorIndex, e.Delta);
                 MoveForeGroundWindow(context.LeftWindow);
                 MoveForeGroundWindow(context.RightWindow);
             }
@@ -929,17 +975,32 @@ public class SplitScreenApp
         context = new ResizingContext();
     }
 
-    private void SetContextWithDummy(int monitorIndex)
+    private void SetContextWithDummy(int monitorIndex, int delta)
     {
         var (leftWindowRoot, rightWindowRoot) = GetLeftAndRightWindow(monitorIndex);
         var ActualLeftWindow = IntPtr.Zero;
         var ActualRightWindow = IntPtr.Zero;
+        if (leftWindowRoot == rightWindowRoot && NonImmediateResizeWindowClasses.Contains(GetWindowClassName(leftWindowRoot)))
+        {
+            if (delta > 0)
+            {
+
+                rightWindowRoot = IntPtr.Zero;
+
+            }
+            else
+            {
+                leftWindowRoot = IntPtr.Zero;
+
+            }
+
+        }
+
 
         if (NonImmediateResizeWindowClasses.Contains(GetWindowClassName(leftWindowRoot)))
         {
             ActualLeftWindow = leftWindowRoot;
             leftWindowRoot = _leftDummyWindow.WindowHandle;
-
             _leftDummyWindow.DisplayIcon(ActualLeftWindow);
             GetWindowRect(ActualLeftWindow, out RECT leftWindowRect);
             SetWindowPos(leftWindowRoot, IntPtr.Zero, leftWindowRect.Left, leftWindowRect.Top, leftWindowRect.Right - leftWindowRect.Left, leftWindowRect.Bottom - leftWindowRect.Top, SWP_NOZORDER | SWP_NOACTIVATE);
@@ -948,7 +1009,9 @@ public class SplitScreenApp
         }
 
         if (NonImmediateResizeWindowClasses.Contains(GetWindowClassName(rightWindowRoot)))
+
         {
+
             ActualRightWindow = rightWindowRoot;
             rightWindowRoot = _rightDummyWindow.WindowHandle;
 
@@ -958,6 +1021,8 @@ public class SplitScreenApp
             ShowWindow(ActualRightWindow, SW_HIDE);
             _rightDummyWindow.Show();
         }
+
+
 
         context = new ResizingContext
         {
