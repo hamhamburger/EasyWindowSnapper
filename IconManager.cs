@@ -53,7 +53,7 @@ public class IconManager
         }
         if (processId == 0)
         {
-            throw new ArgumentException("Could not find process associated with window handle");
+            return transparentIcon;
         }
         Icon icon = null;
         if (!processIdIconCache.TryGetValue(processId, out icon))
